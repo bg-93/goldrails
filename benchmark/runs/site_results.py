@@ -11,6 +11,7 @@ is listed as not evaluated, so there is no overall entry.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from collections import defaultdict
 from pathlib import Path
@@ -18,14 +19,57 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 RES = REPO / "benchmark" / "results" / "first-benchmark"
 V12 = (RES / "leaderboard-v1.2.json").exists()   # PII on Nemotron-PII (dataset v1.2); earlier views stay on disk
+V13 = (RES / "leaderboard-v1.3.json").exists()   # profanity on Civil Comments' own obscene labels (dataset v1.3)
 OUT = REPO / "site" / "leaderboard" / "results.json"
 SUITE_ID = {"sensitive_info": "sensitive_information"}
-PROFANITY_QS = "v1-f4-profanity"
+# Where each self-hosted GPU pass ran, from GCP audit logs (compute.instances insert and delete). Every pass is priced at
+# one third-party us-east4 g2-standard-24 on-demand rate, so self-hosted costs are normalized estimates.
+GPU_RUNS = [
+    {"run": "core test pass, correction rerun, extensions 1 and 2", "zone": "us-east4-a",
+     "when_utc": "test calls 23 Sep 05:18 to 07:00 and 24 Sep 02:34 to 03:08"},
+    {"run": "sensitive information on Nemotron-PII (dataset v1.2)", "zone": "us-east4-c",
+     "when_utc": "VM up 28 Sep 01:19 to 02:00"},
+    {"run": "profanity or obscenity on Civil Comments (dataset v1.3)", "zone": "us-central1-a",
+     "when_utc": "VM up 28 Sep 07:25 to 07:47"},
+]
+PRICED_AT = "g2-standard-24 on-demand, us-east4, $1.9943 an hour (third-party list price read 23 Sep 2026)"
+CLAIM = {
+    "compares": ("Configured guardrail detectors across six selected task suites: each decision model with its "
+                 "questions, decision rule and frozen threshold, and Amazon Bedrock Guardrails with the policies "
+                 "configured for each suite."),
+    "reference": "The dataset supplies the reference answers. Bedrock is a competitor scored against them, not the answer key.",
+    "claim": ("Comparative quality, cost and latency on this dataset and these configurations. It does not show that "
+              "one system can replace another as a complete service."),
+    "not_tested": [
+        "Sensitive-information masking and anonymisation, span accuracy, and custom regex entities. Only detection is scored.",
+        "Grounding relevance. Only unsupported claims are scored.",
+        "Indirect prompt attacks hidden in retrieved documents or tool output.",
+        "Automated Reasoning checks.",
+        "Image content.",
+        "Languages other than English.",
+        "Bedrock's exact managed profanity list, which AWS does not publish.",
+        "Denied topics beyond the three configured definitions, and custom words beyond the tested lists.",
+        "Both word-filter detectors running together on every message. The category is a component average.",
+        "Throughput under load and end-to-end latency inside an application.",
+    ],
+}
+
+
+def gpu_zone(a: dict) -> str:
+    """The zone the arm's test calls ran in (GPU_RUNS)."""
+    if a["question_set"] == "v1-f4-obscenity":
+        return "us-central1-a"
+    if V12 and a["suite"] == "sensitive_info":
+        return "us-east4-c"
+    return "us-east4-a"
+
+
+PROFANITY_QS = {"v1-f4-profanity", "v1-f4-obscenity"}   # lexicon set (v1.1), Civil Comments (v1.3)
 
 
 def site_suite(a: dict) -> str:
     """Page suite id for an arm: word filters split into custom words and profanity, shown separately."""
-    if a["suite"] == "word_filters" and a["question_set"] == PROFANITY_QS:
+    if a["suite"] == "word_filters" and a["question_set"] in PROFANITY_QS:
         return "profanity"
     return SUITE_ID.get(a["suite"], a["suite"])
 IMPL = {
@@ -113,15 +157,18 @@ def entry_for(a: dict, method: str) -> dict:
         "failures": {"failed": n["failed"], "no_decision": n["nod"], "retries": None,
                      "recovered_after_failure": a["sample_sizes"].get("recovered_after_failure", 0)},
         "coverage": {"subtasks_evaluated": ev, "subtasks_required": list(subs),
-                     "note": ("one of the two word-filter subtasks; the category score is their equal-weight mean"
+                     "note": ("one of the two word-filter subtasks; the category score is their component average"
                               if a["suite"] == "word_filters" and not a["suite_score"]["complete"]
                               else a["suite_score"].get("coverage_note"))},
         "cost": {"usd_per_1000": None if c.get("usd_per_1000") is None else round(c["usd_per_1000"], 5),
                  "basis": c.get("basis"), "note": c.get("reason") or c.get("tariff"),
-                 **({"zero_tariff": True} if zero_tariff else {})},
+                 **({"zero_tariff": True} if zero_tariff else {}),
+                 **({"estimate": f"normalized: allocated serving time at the us-east4 rate; this pass ran in {gpu_zone(a)}"}
+                    if IMPL[a["system"]][2] == "self_hosted" and c.get("usd_per_1000") is not None else {})},
         "latency": serial_latency(a, lat),
         "bias": None,
-        "ledger": {"path": ("benchmark/results/first-benchmark/pii-v12-test.jsonl" if V12 and a["suite"] == "sensitive_info"
+        "ledger": {"path": ("benchmark/results/first-benchmark/prof-v13-test.jsonl" if a["question_set"] == "v1-f4-obscenity"
+                            else "benchmark/results/first-benchmark/pii-v12-test.jsonl" if V12 and a["suite"] == "sensitive_info"
                             else "benchmark/results/first-benchmark/ext-test.jsonl"
                             if (a.get("freeze") or {}).get("via") == "extension"
                             else "benchmark/results/first-benchmark/test.jsonl (+ test-rerun.jsonl)"),
@@ -160,11 +207,21 @@ SCOPE = {
                       "Not independent human annotation: one AI reviewer, not independent of the benchmark design, no "
                       "inter-rater agreement. It may favour systems that reason like the reviewer. Three topics only; "
                       "labels are for these definitions, not for broader custom policies."),
-    "profanity": ("Performance against our written profanity definition on real public comments (ordinary, quoted and "
+    "profanity": (("Performance against Civil Comments' original crowd-rater labels (Borkan et al. 2019, CC0) on real "
+                   "public comments. Raters answered 'Profanity/Obscenity: contains swear words, curse words, or other "
+                   "obscene or profane language'. A comment counts as profane when at least half its raters said yes, and "
+                   "as clean when none did. The decision models were asked the raters' own question.",
+                   "Derived binary labels, not unanimous judgments. The 14,800 comments with a share between 0 and 0.5 are "
+                   "left out, so the hardest borderline cases are absent; 552 comments the benchmark had already used are "
+                   "also left out. A blind AI audit of the 50 tuning rows agreed with 45 labels; four positives rated 0.50 to "
+                   "0.61 read as mild insults or minced oaths. For Bedrock's managed filter this is performance against an "
+                   "external dataset, not identical implementation or vocabulary. English only. The earlier lexicon-selected "
+                   "rows are a separate challenge set outside this score.") if V13 else
+                  ("Performance against our written profanity definition on real public comments (ordinary, quoted and "
                   "mild profanity, and clean messages with confusing words), labelled by a single AI reviewer "
                   "(provisional).",
                   "Not independent human annotation. Not agreement with AWS's undisclosed profanity vocabulary. Masked "
-                  "spellings are a separate diagnostic outside the score. English only."),
+                  "spellings are a separate diagnostic outside the score. English only.")),
     "word_filters": ("Perfect scores on the tested rules and templates.",
                      "The 160 rows come from 20 templates, so broad robustness is not established."),
     "sensitive_information": (("Detection of personal data in synthetic business, health and finance documents from NVIDIA "
@@ -189,9 +246,35 @@ SCOPE = {
 }
 
 
+REVIEWED_SCOPE = {   # denied topics once the project owner's review is recorded; label origin stays in the sources
+    "denied_topics": ("Messages inside and just outside three written topic definitions. One AI reviewer drafted the "
+                      "labels (Codex, 24 Sep 2026) and the project owner reviewed them.",
+                      "Owner review, not independent two-reviewer adjudication, so no inter-rater agreement is measured. "
+                      "Three topics only; labels are for these definitions, not for broader custom policies."),
+}
+
+
+def label_review() -> dict | None:
+    """The project owner's review of every label in the current release, when recorded for this exact manifest."""
+    rel = REPO / "dataset/release" / json.loads(subset_manifest().read_text(encoding="utf-8"))["release"]
+    p = rel / "owner-review-confirmation.json"
+    if not p.exists():
+        return None
+    r = json.loads(p.read_text(encoding="utf-8"))
+    if r.get("release_manifest_sha256") != hashlib.sha256((rel / "manifest.json").read_bytes()).hexdigest():
+        return None
+    return {"status": "project_owner_review", "reviewer": r["reviewer"], "role": r["role"],
+            "recorded_at": r["recorded_at"], "release": r["release"], "scope": r["scope"],
+            "record": str(p.relative_to(REPO)),
+            "independent_two_reviewer_adjudication": bool(r.get("independent_two_reviewer_adjudication")),
+            "label_changes": bool(r.get("label_changes_supplied")),
+            "label_origins": "unchanged: every row keeps its label_basis and review_status, shown per source under data scope",
+            "note": "Owner review, not independent annotation: one reviewer, no agreement statistic."}
+
+
 def subset_manifest() -> Path:
     """The newest subset the results were scored on: v1.1 (human-reviewed, a later version), else v1.1-ai, else v1.0."""
-    for name in (("first-benchmark-v1.2",) if V12 else ()) + ("first-benchmark-v1.1", "first-benchmark-v1.1-ai", "first-benchmark"):
+    for name in (("first-benchmark-v1.3",) if V13 else ()) + (("first-benchmark-v1.2",) if V12 else ()) + ("first-benchmark-v1.1", "first-benchmark-v1.1-ai", "first-benchmark"):
         p = REPO / "benchmark/subsets" / name / "manifest.json"
         if p.exists():
             return p
@@ -212,7 +295,7 @@ def data_quality() -> list:
     out = []
     groups = [(f, suite, None) for f, suite in FEATURE_SUITE.items() if f != "F4"]
     groups.insert(3, ("F4", "word_filters", {"word"}))
-    groups.insert(4, ("F4", "profanity", {"profanity", "profanity_obfuscated"}))
+    groups.insert(4, ("F4", "profanity", {"profanity"} if V13 else {"profanity", "profanity_obfuscated"}))   # v1.3: lexicon rows are a separate set
     for f, suite, subs in groups:
         rs = [r for r in rows if r["feature"] == f and (subs is None or r["subtask"] in subs)]
         src = defaultdict(int)
@@ -229,9 +312,10 @@ def data_quality() -> list:
             for r in rs:
                 tt[json.loads(r["provenance"].get("notes") or "{}").get("task_type", "unknown")] += 1
             extra = " Task types: " + ", ".join(f"{k} {v}" for k, v in sorted(tt.items())) + "."
-        supports, limits = SCOPE[suite]
+        supports, limits = REVIEWED_SCOPE[suite] if suite in REVIEWED_SCOPE and label_review() else SCOPE[suite]
         out.append({"suite": suite, "test_cases": len(rs), "groups": len({r["group"] for r in rs}),
-                    "sources": [{"source": a, "label_basis": b, "role": c, "n": n} for (a, b, c), n in sorted(src.items())],
+                    "sources": [{"source": a, "label_basis": b, "role": c, "n": n,
+                                 **({"review": "project owner"} if label_review() else {})} for (a, b, c), n in sorted(src.items())],
                     "supports": supports + extra, "limits": limits})
     return out
 
@@ -281,25 +365,61 @@ def sensitivity_block() -> dict | None:
     return out
 
 
+def accepted_blockers(lb: dict) -> list:
+    """Evaluator blockers the project owner accepted in a committed, confirmed approval that this result used."""
+    used = {Path(x["approval_path"]).name for x in lb.get("analysis_versions") or []}
+    out = []
+    for name in sorted(used):
+        a = json.loads((REPO / "benchmark/subsets/first-benchmark" / name).read_text(encoding="utf-8"))
+        c = a.get("confirmation") or {}
+        if not (c.get("by") and c.get("at") and c.get("statement")):
+            continue
+        for b in a.get("accepted_blockers") or []:
+            if b in lb["publication_blockers"] and b not in [x["blocker"] for x in out]:
+                out.append({"blocker": b, "accepted_by": c["by"], "accepted_at": c["at"], "record": name,
+                            "basis": a.get("accepted_on")})
+    return out
+
+
+def open_blockers(lb: dict) -> list:
+    acc = {x["blocker"] for x in accepted_blockers(lb)}
+    return [b for b in lb["publication_blockers"] if b not in acc]
+
+
 def notice(lb: dict) -> str:
-    blocked = bool(lb["publication_blockers"])
+    blocked = bool(open_blockers(lb))
     version = lb["contract"]["version"]
+    if label_review():
+        return (("INTERIM. " if blocked else "") + "All six categories are scored. The project owner reviewed every "
+                "current label; this is owner review, not independent two-reviewer adjudication. "
+                + (f"Evaluation contract {version} is a draft without sign-off. Not for publication." if blocked
+                   else f"Evaluation contract {version} is signed and the corrected analysis is confirmed."))
     if not provisional_block():
         return ("INTERIM. Five of six suites evaluated (denied topics awaits reviewed rows), so there is no overall "
                 f"rank. Evaluation contract {version} is a draft without sign-off. Not for publication.")
     head = ("INTERIM AND PROVISIONAL. " if blocked else "PROVISIONAL. ") + (
+        "All six categories are scored; denied topics uses single-AI reference labels. " if V13 else
         "All six categories are scored; denied topics and profanity use single-AI reference labels. ")
     return head + (f"Evaluation contract {version} is a draft without sign-off. Not for publication." if blocked
                    else f"Evaluation contract {version} is signed and the corrected analysis is confirmed.")
 
 
 def provisional_block() -> dict | None:
-    """Denied topics, profanity and the overall are provisional when the extension subset admits single-AI labels."""
+    """Denied topics, profanity and the overall are provisional when the extension subset admits single-AI labels and
+    no human review of the current release is recorded."""
+    if label_review():
+        return None
     exts = sorted((REPO / "benchmark" / "subsets" / "first-benchmark").glob("freeze-extension-*.json"))
     for p in exts:
         subset = json.loads(p.read_text(encoding="utf-8"))["extends"].get("subset")
         man = REPO / "benchmark" / "subsets" / (subset or "") / "manifest.json"
         if subset and man.exists() and json.loads(man.read_text(encoding="utf-8")).get("provisional_ai_reference"):
+            if V13:   # profanity now scores against Civil Comments' human rater labels
+                return {"suites": ["denied_topics", "overall"],
+                        "note": ("Provisional: denied topics uses single-AI reference labels (Codex, 24 Sep 2026), not "
+                                 "independent human review, so the overall is provisional too. A blind packet of the 73 "
+                                 "test rows awaits two human reviewers; until they report, this result stands. See "
+                                 "benchmark/contracts/v1.1-amendment-ai-reference.md.")}
             return {"suites": ["denied_topics", "profanity", "overall"],
                     "note": ("Provisional: denied topics and profanity use single-AI reference labels (Codex, 24 Sep 2026), "
                              "not independent human review. See benchmark/contracts/v1.1-amendment-ai-reference.md.")}
@@ -326,7 +446,13 @@ def overall_entries(lb: dict, method: str) -> list:
                     "suites": {SUITE_ID.get(su, su): {"task_score": v.get("task_score"), "ci": v.get("ci"),
                                                        "usd_per_1000": v.get("usd_per_1000"),
                                                        "subtask_arms": v.get("subtask_arms"),
-                                                       "composition": v.get("composition")}
+                                                       "composition": v.get("composition"),
+                                                       **({"score_basis": (
+                                                           "component average: the equal-weight mean of the custom-word "
+                                                           "and profanity scores, each measured on its own test rows; "
+                                                           "cost is the sum of the two checks. Not measured with both "
+                                                           "detectors running on every message.")}
+                                                          if su == "word_filters" else {})}
                                for su, v in imp["suites"].items()},
                     "quality": {"score": round(imp["overall_score"], 4),
                                 "interval": interval(ci, method) if ci.get("low") is not None else None},
@@ -340,6 +466,76 @@ def overall_entries(lb: dict, method: str) -> list:
                     # would mix categories measured for some systems and not others.
                     "latency": None})
     return out
+
+
+def freeze_validation_note() -> str:
+    """The two implementations-file blockers, read against the per-arm check in validate_extension_freeze.py."""
+    v = json.loads((RES / "extension-freeze-validation.json").read_text(encoding="utf-8"))
+    chain = " to ".join(f"{Path(x['file']).name} ({x['committed_at'][:16].replace('T', ' ')} UTC)"
+                        for x in v["declaration_chain"])
+    comp = [x["composition_note"] for x in v["declaration_links"] if x.get("composition_note")]
+    return (f"Two blockers say an implementations file was not committed before the first test attempt. The evaluator "
+            f"reads the declaration chain one link deep and compares it with the earliest test call in any ledger. The "
+            f"chain is {chain}. An extension-specific check (extension-freeze-validation.json) found, for "
+            f"{v['arms_checked'] - len(v['arms_failed'])} of {v['arms_checked']} arms, that the first declaration naming "
+            f"the arm and the freeze manifest holding its thresholds were both committed before that arm's first test "
+            f"call." + (" One caveat: the word-filter composition in implementations-v1.1.json came after the custom-word "
+                        "arms ran; it averages their frozen scores and changes none, under contract v1.1 and approval 4."
+                        if comp else "")
+            + (" The project owner accepted this check on 28 September 2026 (analysis-approval-5.json); the evaluator "
+               "is unchanged and still prints both lines." if (RES / "leaderboard-final.json").exists() else
+               " The evaluator is unchanged, so the blockers stay listed until the project owner accepts this check."))
+
+
+def comparisons(lb: dict, source: str) -> list:
+    """Jev minus Bedrock for each page row, copied from the evaluator's paired-difference intervals (same test rows,
+    same bootstrap draws). A verdict is 'ahead' only when the paired interval excludes zero."""
+    by_id = {a["arm_id"]: a for a in lb["arms"]}
+    out = []
+    for su, block in lb["suites"].items():
+        for p in block["paired_differences"]:
+            A, B = by_id[p["a"]], by_id[p["b"]]
+            ids = (IMPL[A["system"]][0], IMPL[B["system"]][0])
+            if set(ids) != {"jev", "bedrock"} or site_suite(A) != site_suite(B) or not p.get("ci"):
+                continue
+            sign = 1 if ids[0] == "jev" else -1
+            lo, hi = sorted((sign * p["ci"]["low"] + 0.0, sign * p["ci"]["high"] + 0.0))
+            out.append({"suite": site_suite(A), "a": "jev", "b": "bedrock", "difference": round(sign * p["difference"], 4) + 0.0,
+                        "ci": {"low": round(lo, 4), "high": round(hi, 4), "level": 0.95}, "separated": p["separated"],
+                        "common_rows": p.get("common_rows"), "source": f"{source}: suites.{su}.paired_differences"})
+    for p in lb["overall"]["paired_differences"]:
+        if {p["a"], p["b"]} == {"jev-1.13.0", "bedrock-guardrails"} and p.get("ci"):
+            sign = 1 if p["a"] == "jev-1.13.0" else -1
+            lo, hi = sorted((sign * p["ci"]["low"] + 0.0, sign * p["ci"]["high"] + 0.0))
+            out.append({"suite": "overall", "a": "jev", "b": "bedrock", "difference": round(sign * p["difference"], 4) + 0.0,
+                        "ci": {"low": round(lo, 4), "high": round(hi, 4), "level": 0.95}, "separated": p["separated"],
+                        "source": f"{source}: overall.paired_differences"})
+    # The word-filter category has no stored paired interval. When both systems made no error on the custom-word rows,
+    # every bootstrap replicate of that component's difference is 0, so the category's replicates are exactly half the
+    # profanity replicates and its interval is half the profanity interval. Otherwise no paired verdict is given.
+    perfect = [a for a in lb["arms"] if site_suite(a) == "word_filters" and IMPL[a["system"]][0] in ("jev", "bedrock")
+               and all(v["n"]["tp"] == v["n"]["positive"] and v["n"]["fp"] == 0 and v["n"]["failed"] == 0
+                       and v["n"]["no_decision"] == 0 for v in a["subtasks"].values() if v["status"] == "evaluated")]
+    prof = next((c for c in out if c["suite"] == "profanity"), None)
+    if len(perfect) == 2 and prof:
+        out.append({"suite": "word_filters_category", "a": "jev", "b": "bedrock",
+                    "difference": round(prof["difference"] / 2, 4),
+                    "ci": {"low": round(prof["ci"]["low"] / 2, 4), "high": round(prof["ci"]["high"] / 2, 4), "level": 0.95},
+                    "separated": prof["separated"],
+                    "source": (f"{source}: half the profanity paired interval, because both systems scored every "
+                               "custom-word test row correctly, so that component's difference is 0 in every replicate")})
+    return out
+
+
+def perfect_note(lb: dict) -> str | None:
+    """What a 100 to 100 interval on a perfect sample does and does not show."""
+    arms = [a for a in lb["arms"] if a["suite_score"].get("value") == 100.0]
+    if not arms:
+        return None
+    n = arms[0]["sample_sizes"]["report_rows"]
+    return (f"{len(arms)} arms scored 100 with a 95% interval of 100 to 100 (for example custom words, {n} test rows). "
+            "A system that makes no error on the test rows scores 100 in every bootstrap resample, so the interval "
+            "has no width. It shows no errors on these rows, not certain accuracy on all messages.")
 
 
 def bias_entries(bias: dict) -> list:
@@ -361,8 +557,9 @@ def bias_entries(bias: dict) -> list:
                     "status": "evaluated",
                     "status_note": ("Exploratory. B1: 100 Civil Comments identity mentions, 1 to 18 per identity, too few "
                                     "for group comparisons. "
-                                    + (f"B2: {b2n} counterfactual test pairs with single-AI reference labels (provisional); "
-                                       "hard and unresolved pairs were omitted, so this is an anecdote, not a rate. "
+                                    + (f"B2: {b2n} counterfactual test pairs, labels drafted by one AI reviewer"
+                                       + (" and reviewed by the project owner; " if label_review() else " (provisional); ")
+                                       + "hard and unresolved pairs were omitted, so this is an anecdote, not a rate. "
                                        if b2n else "B2 pairs await review. ")
                                     + "Not a fairness ranking."),
                     "quality": {"score": round(100 * q["balanced_accuracy"], 2)},
@@ -370,7 +567,7 @@ def bias_entries(bias: dict) -> list:
                     "threshold": {"value": s["threshold"], "selected_on": "tune", "rule": "the system's frozen content request threshold"},
                     "coverage": {"subtasks_evaluated": ["b1_disparate_fpr"] + (["b2_counterfactual"] if b2n else []),
                                  "subtasks_required": ["b1_disparate_fpr", "b2_counterfactual"],
-                                 "note": f"B2 reported separately: {b2n} pairs, provisional" if b2n else "B2 not evaluated"},
+                                 "note": f"B2 reported separately: {b2n} pairs" + ("" if label_review() else ", provisional") if b2n else "B2 not evaluated"},
                     "bias": {"groups": groups, "pairs": b2n or None,
                              "pair_flip_rate": s["B2"]["flip_rate"] if b2n else None,
                              "paired_correctness": round(b2["all_correct"] / b2n, 4) if b2n else None,
@@ -408,7 +605,7 @@ def bias_entries(bias: dict) -> list:
 def main() -> int:
     # six categories once the extension has run: the final view (built after the owner's sign-off) if it exists, else
     # the provisional one; the five-category corrected view stays in leaderboard-corrected.json either way
-    pick = next(p for p in (RES / "leaderboard-final.json", RES / "leaderboard-v1.2.json", RES / "leaderboard-provisional.json",
+    pick = next(p for p in (RES / "leaderboard-final.json", RES / "leaderboard-v1.3.json", RES / "leaderboard-v1.2.json", RES / "leaderboard-provisional.json",
                             RES / "leaderboard-corrected.json")
                 if p.exists())
     lb = json.loads(pick.read_text(encoding="utf-8"))
@@ -418,6 +615,9 @@ def main() -> int:
     lat = jl(RES / "latency.jsonl") + jl(RES / "ext-latency.jsonl")
     if V12:   # PII latency comes from the Nemotron pass; the old PII rows ran the same question set on other text
         lat = [r for r in lat if not r.get("id", "").startswith("f5-")] + jl(RES / "pii-v12-latency.jsonl")
+    if V13:   # profanity latency comes from the Civil Comments pass, which timed all seven systems
+        lat = ([r for r in lat if not r.get("id", "").startswith("f4-civil_comments_profanity-")]
+               + jl(RES / "prof-v13-latency.jsonl"))
     for r in lat:
         if r.get("ok") and r.get("latency_s") is not None:
             serial[IMPL[r["system"]][0]].append(r["latency_s"])
@@ -450,51 +650,133 @@ def main() -> int:
     entries += overall_entries(lb, method)
     sub = json.loads(subset_manifest().read_text(encoding="utf-8"))
     entries += bias_entries(bias)
+    # the public dataset is the newest uploaded release; results may run ahead of it on a later internal release
+    pubs = sorted((REPO / "dataset/release").glob("*/publication.json"), key=lambda q: q.stat().st_mtime)
+    publication = json.loads(pubs[-1].read_text(encoding="utf-8")) if pubs else {}
     doc = {
         "schema_version": "goldrails-leaderboard-site/0.1",
         "placeholder": False,
         "notice": notice(lb),
-        "benchmark": {"name": "Gold Rails, first benchmark" + (" (interim)" if lb["publication_blockers"] else ""),
+        "benchmark": {"name": "Gold Rails, first benchmark" + (" (interim)" if open_blockers(lb) else ""),
                       "dataset_version": f"{sub['release']} subset {sub['name']}",
                       "dataset_sha256": sub["subset_sha256"],
-                      "dataset_url": None, "split": "test",
+                      "dataset_url": publication.get("destination") if publication.get("visibility") == "public" else None,
+                      "public_release": publication.get("hub_tag"), "split": "test",
+                      "public_note": (None if not publication or publication.get("release") == sub["release"] else
+                                      f"The public dataset is Gold Rails {publication.get('hub_tag')} on Hugging Face "
+                                      f"(revision {publication.get('hub_commit', '')[:12]}, built from internal release "
+                                      f"{publication.get('release')}). These results use internal release {sub['release']}, "
+                                      f"which differs only in the profanity rows; it is a proposed revision of "
+                                      f"{publication.get('hub_tag')} and is not uploaded."),
                       "evaluation_contract": f"{lb['contract']['version']} ({lb['contract']['status']})",
                       "release_manifest": f"dataset/release/{sub['release']}/manifest.json",
                       "generated_at": "2026-09-28" if V12 else "2026-09-24",
                       "headline_metric": "Task score = 100 x 0.5 x (violation recall + benign pass rate)",
                       "aggregation": "Subtasks equal within a suite; six suites equal in Overall; Bias outside the aggregate",
                       "fpr_budget": 0.05},
-        "cost_basis": {"unit": "usd_per_1000_evaluations", "tariff_date": "2026-09-23", "region": "us-east-1 (AWS), us-east4 (GCP)",
-                       "notes": ("Jev: measured tokens x list price. Bedrock: text units x list price. Self-hosted: whole-VM "
-                                 "serving windows x g2-standard-24 on-demand rate (third-party price list), one model at a time, "
-                                 "summed over the original test pass and the correction rerun and divided by unique cases. "
+        "cost_basis": {"unit": "usd_per_1000_evaluations", "tariff_date": "2026-09-23", "region": "AWS us-east-1 list prices; self-hosted GPU time priced at " + PRICED_AT,
+                       "pricing_region": "us-east4",
+                       "self_hosted_cost": "normalized estimate",
+                       "run_locations": GPU_RUNS,
+                       "notes": ("Jev: measured tokens x list price. Bedrock: text units x list price. Self-hosted: allocated "
+                                 "serving cost under the tested setup, one g2-standard-24 VM with two L4 GPUs. Each model's "
+                                 "serving windows come from its own test calls, with overlapping windows split between models, "
+                                 "summed over the test pass and any correction rerun and divided by unique cases. These are "
+                                 "normalized estimates. Every pass is priced at the us-east4 rate, although the PII pass ran in "
+                                 "us-east4-c and the profanity pass in us-central1-a (run_locations, from GCP audit logs); the "
+                                 "rate is a third-party list price, not a verified regional tariff. "
                                  "Windows are reconstructed from completion times recorded to the second, minus each attempt's "
                                  "latency, so they carry about a second of uncertainty each. Setup and idle VM time are excluded "
                                  "here and counted in the project spend. Regex baseline: cost not measured, shown without a cost point. List prices, not "
                                  "reconciled against a bill.")},
         "latency_basis": {"unit": "seconds", "concurrency": None,
-                          "client_location": "operator laptop in Australia; IAP tunnels to us-east4-a; Bedrock us-east-1",
+                          "client_location": ("operator laptop in Australia; IAP tunnels to the GPU VM in the zone "
+                                              "each pass ran in (cost_basis.run_locations); Bedrock us-east-1"),
                           "notes": "Serial latency: a dedicated pass sending one request at a time to every system, 50 to 100 rows per suite, so systems compare under the same load. The test pass ran under different concurrency per system (Jev 8, Bedrock 1, GPU lane 2); its p95 is kept in each entry for reference only. Regex is sub-millisecond and shown as blank."},
         "disclosures": lb.get("disclosures", []) + [
             "51 test rows failed on dropped connections and were re-attempted under the same frozen configuration; the "
             "original and corrected results are both kept",
-            "the freeze manifests' commit times are local Git evidence until the repository is published",
+            "The original freeze chronology is preserved in local development Git history. The clean code export has fresh "
+            "history and does not independently establish when the original test configurations were frozen.",
             "Gold Rails is a non-commercial research benchmark, published for research with credit to every upstream "
-            "source; each source's rows stay under that source's licence. AI4Privacy's rows are not in the public "
-            "dataset while its research and redistribution terms are clarified"]
-            + ([provisional_block()["note"],
-                "The five core categories (content, prompt attacks, custom words, sensitive information, grounding) use "
-                "the same test rows, frozen thresholds, scores and costs as the corrected five-category view "
-                "(benchmark/results/first-benchmark/leaderboard-corrected.json), which stays published unchanged.",
-                "Serial latency for denied topics and profanity was measured for Jev and Bedrock only; the self-hosted "
-                "models have no serial latency point there (their loaded test-pass p95 is in each entry's details).",
+            "source; each source's rows stay under that source's licence. "
+            + ("The public dataset built from internal v1.2 uses NVIDIA Nemotron-PII and contains no AI4Privacy rows." if V12 else
+               "AI4Privacy rows are excluded from the public package.")]
+            + ([f"Labels: the project owner reviewed every current label ({label_review()['record']}). Rows keep "
+                "their original label origin. Denied topics and B2 labels were drafted by one AI reviewer, profanity uses "
+                "Civil Comments rater labels, and the other suites use their sources' labels. This is owner review, not "
+                "independent two-reviewer adjudication."] if label_review() else
+               [provisional_block()["note"]] if provisional_block() else [])
+            + [CLAIM["claim"], CLAIM["reference"],
+               "Word filters is a component average: the equal-weight mean of the custom-word and profanity scores, each "
+               "measured on its own test rows, with cost summed over the two checks. It is not a measurement of both "
+               "detectors running together on every message.",
+               "Verdicts compare Jev with Bedrock by the paired difference on the same test rows. Jev or Bedrock is "
+               "'ahead' when the 95% paired interval excludes zero, and there is 'no clear difference' when it includes "
+               "zero. The bars show each system's own interval; two bars can overlap while the paired interval still "
+               "excludes zero."]
+            + ([perfect_note(lb)] if perfect_note(lb) else [])
+            + ([("Content, prompt attacks, custom words and grounding retain the corrected first-run results. Sensitive "
+                 "information was rerun on NVIDIA Nemotron-PII under its own frozen manifest; original results remain "
+                 "archived unchanged." if V12 else
+                 "The five core categories retain the corrected five-category results, archived unchanged."),
+                "Serial latency for denied topics was measured for Jev and Bedrock only; the self-hosted models have no "
+                "serial latency point there (their loaded test-pass p95 is in each entry's details)."
+                + (" Profanity serial latency comes from a 50-row pass over all seven systems." if V13 else
+                   " The same holds for profanity.")]
+               + ([
+                "Profanity now scores against Civil Comments' rater labels (dataset v1.3). For Bedrock's managed profanity "
+                "filter this is performance against an external dataset, not identical implementation or vocabulary. "
+                "Bedrock flagged 26 of the 80 profane test comments (recall 0.325). Why it missed the others was not "
+                "investigated.",
+                freeze_validation_note()] if V13 else [
                 "Bedrock's profanity score is against a written definition, not AWS's undisclosed managed list; its low "
-                "recall reflects that mismatch as much as detection quality."] if provisional_block() else []),
-        "blockers": lb["publication_blockers"] + (
+                "recall reflects that mismatch as much as detection quality."]) if any(a["suite"] == "denied_topics" for a in lb["arms"]) else []),
+        "accepted_blockers": accepted_blockers(lb),
+        "blockers": open_blockers(lb) + (
             [] if any(e["suite"] == "denied_topics" and e["status"] == "evaluated" for e in entries)
             else ["denied topics and bias B2 counterfactual pairs await independent human review"]),
         "sensitivity_views": sensitivity_block(),
         "corrections": ([
+            *([{"date": "2026-09-28", "title": "Contract v1.1 signed; approval 5 confirmed",
+                "detail": ("The project owner signed evaluation contract v1.1 and confirmed approval 5 in chat: \"go ahead, "
+                           "sign contract and approval 5, keep repo private\". The signed contract "
+                           "(benchmark/contracts/v1.1-signed.json, hash 77180f6520c3ee4a) changes only version and status "
+                           "from the draft. Approval 5 has one record per freeze manifest, keeps scoring code 92a74bcc, "
+                           "and accepts the two implementations-file blockers on the per-arm freeze check (50 of 50 arms). "
+                           "leaderboard-final.json was rebuilt under it with no model calls; every score, interval, cost and "
+                           "paired difference equals leaderboard-v1.3.json, which stays as history with approval 4."),
+                "code_commit": "aedd164"}] if (RES / "leaderboard-final.json").exists() else []),
+            {"date": "2026-09-28", "title": "Project-owner review of all current labels",
+             "detail": ("The project owner reviewed every label in release v1.3 and recorded it on 28 September 2026 "
+                        "(dataset/release/v1.3/owner-review-confirmation.json). No label changed, and no score changed. "
+                        "Rows keep their original label origin: one AI reviewer drafted the denied-topics and B2 labels, "
+                        "profanity uses Civil Comments rater labels, and the other suites use their sources' labels. This "
+                        "is owner review, not independent two-reviewer adjudication. Entries below that call labels "
+                        "provisional or awaiting review describe the status before this date. The blind two-reviewer "
+                        "packet for the 73 denied-topics test rows stays available for an independent check."),
+             "code_commit": None},
+            {"date": "2026-09-28", "title": "Reporting changes after an independent review",
+             "detail": ("Scores are unchanged. Verdicts now come from the paired difference between Jev and Bedrock on the "
+                        "same rows, not from whether their separate intervals overlap; no verdict changed on these "
+                        "results. The word-filter category is "
+                        "labelled a component average. Self-hosted costs are labelled normalized estimates, and each GPU "
+                        "pass's actual zone is recorded apart from the us-east4 pricing assumption. The claim is scoped to "
+                        "configured detectors on six selected suites, with untested capabilities listed. An unsupported "
+                        "explanation of Bedrock's profanity misses was removed."),
+             "code_commit": None}] if label_review() else []) + ([
+            {"date": "2026-09-28", "title": "Profanity reference task changed: Civil Comments' own labels (dataset v1.3)",
+             "detail": ("The profanity subtask had been scored against one AI reviewer's labels on comments picked with a "
+                        "word list. It now asks Civil Comments' rater question and scores against the raters' own labels, "
+                        "renamed 'Profanity or obscenity — Civil Comments'. Every system refitted its threshold on 50 tuning "
+                        "rows under extension manifest 4, committed before any test call, and ran 160 new test rows once. "
+                        "Category weights are unchanged. Profanity is half of word filters, which is one sixth of the "
+                        "overall, so each profanity change moves the overall by a twelfth. Overall, v1.2 to v1.3: Jev 91.9 "
+                        "to 91.9, Kev 9B 86.7 to 87.1, Kev 4B 86.2 to 86.5, Bedrock 80.5 to 81.1, Open-Jev 2B 73.4 to "
+                        "73.3, Kev 0.8B 71.8 to 73.1, Laya 68.8 to 69.6. No rank changes. Jev leads Bedrock by 10.8 points "
+                        "(95% interval 8.4 to 13.2), down from 11.4. The lexicon-set results stay in "
+                        "leaderboard-v1.2.json."),
+             "code_commit": "3f4ef15"}] if V13 else []) + ([
             {"date": "2026-09-28", "title": "PII source replaced: NVIDIA Nemotron-PII (dataset v1.2)",
              "detail": ("AI4Privacy's licence did not allow publishing its rows, and its data had document overlap across "
                         "tuning and test and missing annotations. After a bounded audit, PII now uses NVIDIA Nemotron-PII "
@@ -508,7 +790,9 @@ def main() -> int:
                         "does not support, and 32 content rows outside the five content categories. Primary scores are "
                         "unchanged. Views without the affected rows, under rules committed before computing them, are "
                         "shown under the charts; none changes a Jev and Bedrock verdict. A clean held-out PII result "
-                        "would need a fresh PII test selection."),
+                        "would need a fresh PII test selection."
+                        + (" That follow-up is complete: the current PII result uses the fresh NVIDIA Nemotron-PII "
+                           "selection described above; the original PII audit and sensitivity views remain archived." if V12 else "")),
              "code_commit": "822e9e5"},
             {"date": "2026-09-24", "title": "Overall compared on cost only",
              "detail": ("The page had shown an overall latency pooled across categories. The self-hosted models had no "
@@ -550,6 +834,9 @@ def main() -> int:
              "code_commit": "5ab9d5e"}],
         "data_quality": data_quality(),
         "provisional": provisional_block(),
+        "label_review": label_review(),
+        "scope": CLAIM,
+        "comparisons": comparisons(lb, str(pick.relative_to(REPO))),
         "implementations": list(impls.values()),
         "entries": entries,
     }

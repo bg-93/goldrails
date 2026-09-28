@@ -115,7 +115,7 @@ h2 { font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.02em; font-weight: 
 .v-dm { color: var(--dm); }
 .v-br { color: var(--br); }
 .v-level { color: var(--ink); }
-.v-wait { color: var(--ink-3); font-weight: 500; }
+.v-wait, .v-unpaired { color: var(--ink-3); font-weight: 500; }
 .lcost { font-size: 14px; color: var(--ink-2); }
 .lcost b { color: var(--ink); font-weight: 600; }
 .lcost small { display: block; font-size: 13px; color: var(--ink-3); }
@@ -291,6 +291,19 @@ code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0ms !important; animation: none !important; }
 }
+
+.jumpnav { display:flex; flex-wrap:wrap; gap:8px 24px; padding:18px 0; border-block:1px solid var(--rule); }
+.jumpnav a { font-size:14px; text-decoration:none; font-weight:600; }
+.review-note { border-left:3px solid var(--br); padding:12px 18px; background:var(--raise); color:var(--ink-2); max-width:900px; }
+.hosting { display:block; font-size:12px; color:var(--ink-3); font-weight:400; }
+.overview td:first-child { text-align:left; }
+.overview th { white-space:normal; }
+section { scroll-margin-top:24px; }
+.table-filter { display:flex; gap:12px; align-items:center; margin:18px 0; font-size:14px; }
+.table-filter select { font:inherit; padding:8px 12px; border:1px solid var(--rule); background:var(--raise); color:var(--ink); border-radius:4px; max-width:100%; }
+details.review-details { border-top:1px solid var(--rule); padding:16px 0; }
+details.review-details summary { cursor:pointer; font-weight:600; }
+
 </style>
 </head>
 <body>
@@ -310,6 +323,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     <ul class="status" id="status"></ul>
   </header>
 
+  <nav class="jumpnav" aria-label="Results sections"><a href="#h-overview">All models</a><a href="#h-verdict">By capability</a><a href="#charts">Cost &amp; speed</a><a href="#h-table">Detailed results</a><a href="#h-scope">Data quality</a><a href="#h-method">Method &amp; review</a></nav>
   <main id="main">
     <div class="skeleton" aria-hidden="true" style="margin-top:48px"></div>
   </main>
@@ -342,10 +356,12 @@ const ROWS = SUITES.flatMap((s) => (s === "word_filters" ? ["word_filters", "pro
 const WF = "word_filters_category";
 const CHARTS = SUITES.map((s) => (s === "word_filters" ? WF : s));
 const COST_ONLY = new Set(["overall", WF]);
-const LABEL = { word_filters: "Word filters: custom words", profanity: "Word filters: profanity", [WF]: "Word filters" };
+const LABEL = { word_filters: "Word filters: custom words", profanity: "Profanity or obscenity — Civil Comments", [WF]: "Word filters (component average)" };
 const baseLabel = (s) => LABEL[s] || (VIEW[s] ? VIEW[s].label : s);
+const ownerReviewed = () => !!(state.data && state.data.label_review);   // from results.json, built from the release's review record
+const profProv = () => isProvisional("profanity");
 const isProvisional = (s) => !!(state.data && state.data.provisional && (state.data.provisional.suites || []).includes(s === WF ? "profanity" : s));
-const label = (s) => baseLabel(s) + (isProvisional(s) ? " (provisional)" : "");
+const label = (s) => baseLabel(s) + (isProvisional(s) ? (s === "overall" ? " · includes unreviewed labels" : " · labels awaiting review") : "");
 const VIEW = Object.fromEntries(G.VIEWS.map((v) => [v.id, v]));
 const DESC = {
   content: "Harmful requests and unsafe replies",
@@ -356,8 +372,8 @@ const DESC = {
   grounding: "Claims not supported by the supplied evidence",
   bias: "Separate evaluation, outside the six-suite score",
   overall: "Equal-weight mean of all six categories",
-  profanity: "Swear words and vulgar terms, against the written definition",
-  [WF]: "Custom words and profanity, equal weight; two checks per message",
+  profanity: "Word filters, profanity half: swear words and obscene language, against Civil Comments' rater labels",
+  [WF]: "Component average of the custom-word and profanity scores, each from its own test rows; cost sums the two checks",
 };
 const DECISION = new Set(["hosted_api", "self_hosted"]);
 const state = { data: null, axis: "cost", openKey: null };
@@ -397,7 +413,7 @@ function wfEntry(impl) {
   const parts = [entry(impl, "word_filters"), entry(impl, "profanity")];
   const free = o.usd_per_1000 === 0 && parts.every((p) => p && p.cost && p.cost.zero_tariff);
   return { implementation: impl, suite: WF, track: null, status: "evaluated",
-    status_note: "Equal-weight mean of custom words and profanity, from the frozen overall. Cost is the sum of the two checks, each measured on its own rows; not an end-to-end measurement. Profanity uses single-AI reference labels (provisional).",
+    status_note: "Component-average score: the equal-weight mean of the custom-word and profanity scores, from the frozen overall, each measured on its own test rows. Cost is the sum of the two checks. Not a measurement of both detectors running together on every message.",
     quality: { score: o.task_score, interval: o.ci && isNum(o.ci.low) ? { low: o.ci.low, high: o.ci.high, level: 0.95 } : null },
     cost: { usd_per_1000: o.usd_per_1000, basis: "sum of the two checks", ...(free ? { zero_tariff: true } : {}) },
     latency: null };
@@ -412,22 +428,21 @@ const hue = (impl) => impl.id === "bedrock" || impl.type === "managed_service" ?
 const fmtUSD = (v) => (isNum(v) ? "$" + (v >= 1 ? v.toFixed(2) : v.toPrecision(3)) : "not measured");
 const fmtScore = (v) => (isNum(v) ? (Math.round(v * 10) / 10).toFixed(1) : "n/a");
 
+const pairOf = (suite) => (state.data.comparisons || []).find((c) => c.suite === suite && c.a === "jev" && c.b === "bedrock") || null;
 function compare(suite) {
   const j = entry("jev", suite), b = entry("bedrock", suite);
   if (!scored(j) || !scored(b)) return { kind: "wait", j, b, overall: suite === "overall" };
-  const ji = iv(j), bi = iv(b);
   const js = j.quality.score, bs = b.quality.score;
-  let kind = "level";
-  if (ji && bi) {
-    if (ji.low > bi.high) kind = "dm";
-    else if (bi.low > ji.high) kind = "br";
-  }
+  // Verdict from the evaluator's paired interval for Jev minus Bedrock on the same rows, never from overlap of the
+  // two systems' own intervals. No paired interval, no verdict.
+  const pair = pairOf(suite);
+  const kind = !pair ? "unpaired" : pair.separated ? (pair.difference > 0 ? "dm" : "br") : "level";
   const best = state.data.implementations
     .filter((i) => DECISION.has(i.type))
     .map((i) => ({ i, e: entry(i.id, suite) }))
     .filter((x) => scored(x.e))
     .sort((a, c) => c.e.quality.score - a.e.quality.score)[0];
-  return { kind, j, b, js, bs, best };
+  return { kind, j, b, js, bs, best, pair };
 }
 
 function answerText() {
@@ -441,9 +456,9 @@ function answerText() {
   const overlap = done.filter((r) => r.c.kind === "level" && !same(r)).map(name);
   const equal = done.filter((r) => r.c.kind === "level" && same(r));
   const parts = [];
-  if (ahead.length) parts.push(`Jev scores higher than Bedrock on ${list(ahead)}, with intervals that do not overlap.`);
-  if (behind.length) parts.push(`Bedrock scores higher on ${list(behind)}, with intervals that do not overlap.`);
-  if (overlap.length) parts.push(`On ${list(overlap)} the intervals overlap, so no clear difference is established.`);
+  if (ahead.length) parts.push(`Jev scores higher than Bedrock on ${list(ahead)}; the paired 95% interval excludes zero.`);
+  if (behind.length) parts.push(`Bedrock scores higher on ${list(behind)}; the paired 95% interval excludes zero.`);
+  if (overlap.length) parts.push(`On ${list(overlap)} the paired interval includes zero, so no clear difference is established.`);
   for (const r of equal) parts.push(`On ${name(r)} both score ${fmtScore(r.c.js)} on this subset.`);
   const caps = SUITES.filter((su) => ROWS.filter((r) => r === su || (su === "word_filters" && r === "profanity"))
     .some((r) => compare(r).kind !== "wait")).length;
@@ -458,15 +473,25 @@ function answerText() {
 }
 
 /* ---------- opening ---------- */
+function renderOverview() {
+  const rows = rowsOf("overall").filter(r => scored(r.entry)).sort((a,b) => b.entry.quality.score - a.entry.quality.score);
+  return `<section aria-labelledby="h-overview"><h2 id="h-overview">All models at a glance</h2>
+    <p class="sub">Score averages violations caught and benign examples passed; blocking everything scores 50. Overall averages six categories equally. Select a model for details.</p>
+    ${ownerReviewed() ? `<p class="review-note"><strong>Labels reviewed by the project owner.</strong> ${esc(state.data.label_review.reviewer)} (${esc(state.data.label_review.role)}) reviewed ${esc(state.data.label_review.scope.charAt(0).toLowerCase() + state.data.label_review.scope.slice(1))}. Rows keep their original label origins, shown under <a href="#h-scope">data scope</a>. This is owner review, not independent two-reviewer adjudication.</p>` : state.data.provisional ? `<p class="review-note"><strong>One answer key still needs human review.</strong> Denied-topic labels were assigned by AI. Those labels contribute to every overall score below; the scores may change after review. The model runs are complete. <a href="#h-scope">See label sources</a>.</p>` : ""}
+    <div class="tablewrap"><table class="all overview"><thead><tr><th>Implementation / hosting</th><th>Overall score</th><th>95% interval</th><th>Cost per 1,000 category checks</th></tr></thead><tbody>
+    ${rows.map(({impl,entry:e}) => {const ci=iv(e)||{};const host=impl.id.includes("bedrock")?"Managed service · AWS":impl.id.includes("jev")&&!impl.id.includes("open")?"Hosted API · TypeSafe":"Self-hosted · GCP GPUs · allocated VM cost";return `<tr class="row" tabindex="0" data-key="${esc(impl.id)}" data-suite="overall"><td class="name">${esc(short(impl))}<span class="hosting">${host}</span></td><td>${fmtScore(e.quality.score)}</td><td>${isNum(ci.low)?ci.low.toFixed(1)+"–"+ci.high.toFixed(1):"Not available"}</td><td>${e.cost&&isNum(e.cost.usd_per_1000)?fmtUSD(e.cost.usd_per_1000):"Not measured"}</td></tr>`;}).join("")}
+    </tbody></table></div><p class="sub">Self-hosted costs allocate VM serving time; API costs use recorded usage at list prices. Self-hosted costs are normalized estimates: serving time allocated under the tested setup, priced at one us-east4 rate whichever zone each pass ran in. Setup and idle time are excluded. Overall cost averages category checks, not one request running all guardrails. <a href="#h-method">Cost assumptions</a>.</p></section>`;
+}
+
 function renderOpening() {
   const d = state.data, b = d.benchmark;
-  $("meta").textContent = `First benchmark · ${b.generated_at || ""}`;
-  $("answer").textContent = answerText();
+  $("meta").textContent = `First benchmark · ${b.dataset_version ? "Results: " + b.dataset_version.split(" ")[0] + " · " : ""}${b.public_release ? "Public dataset: " + b.public_release + " · " : ""}${b.generated_at || ""}`;
+  $("answer").textContent = "Compare decision models and Amazon Bedrock Guardrails on the same held-out examples. Quality, cost and response time are reported by category, with an equal-weight overall score.";
   const evaluated = SUITES.filter((s) => d.entries.some((e) => e.suite === s && e.status === "evaluated")).length;
   const items = [
     { t: `Contract ${b.evaluation_contract}`, warn: /draft/i.test(b.evaluation_contract || "") },
-    { t: d.placeholder ? "Placeholder values" : (d.blockers || []).length ? "Interim results, not for publication" : "Contract signed, analysis confirmed", warn: !!(d.placeholder || (d.blockers || []).length) },
-    ...(d.provisional ? [{ t: "Denied topics and profanity: single-AI reference labels", warn: true }] : []),
+    { t: d.placeholder ? "Placeholder values" : (d.blockers || []).length ? "Local results · publication checks pending" : "Contract signed, analysis confirmed", warn: !!(d.placeholder || (d.blockers || []).length) },
+    ...(ownerReviewed() ? [{ t: "Labels: project-owner review, not independent", warn: false }] : d.provisional ? [{ t: profProv() ? "Denied topics and profanity: human label review pending" : "Denied topics: human label review pending", warn: true }] : []),
     { t: `Test split, frozen thresholds` },
   ];
   $("status").innerHTML = items.map((x) => `<li class="${x.warn ? "warn" : ""}">${esc(x.t)}</li>`).join("");
@@ -514,11 +539,14 @@ function ledgerScale(suite, c) {
 }
 function verdictHTML(c, note) {
   if (c.kind === "wait") return c.overall ? `<div class="lverdict v-wait">Not ranked yet<small>Never averaged over five</small></div>`
-    : `<div class="lverdict v-wait">Awaiting review<small>Not drawn as zero</small></div>`;
+    : `<div class="lverdict v-wait">Not scored<small>Not drawn as zero</small></div>`;
   const gap = c.js - c.bs;
   const identical = Math.abs(gap) < 1e-9;
-  const txt = { dm: "Jev ahead", br: "Bedrock ahead", level: identical ? `Both ${fmtScore(c.js)}` : "No clear difference" }[c.kind];
-  const sub = c.kind === "level" ? (identical ? "On this subset" : `Intervals overlap (${gap > 0 ? "+" : ""}${gap.toFixed(1)})`) : `${gap > 0 ? "+" : ""}${gap.toFixed(1)} points`;
+  const txt = { dm: "Jev ahead", br: "Bedrock ahead", unpaired: "No paired verdict", level: identical ? `Both ${fmtScore(c.js)}` : "No clear difference" }[c.kind];
+  const pi = c.pair ? ` [${c.pair.ci.low.toFixed(1)}, ${c.pair.ci.high.toFixed(1)}]` : "";
+  const sub = c.kind === "unpaired" ? "No paired interval for this row"
+    : identical ? (c.js === 100 ? "No errors on these rows" : "On this subset")
+    : `${gap > 0 ? "+" : ""}${gap.toFixed(1)} points, paired interval${pi}`;
   return `<div class="lverdict v-${c.kind}">${txt}<small>${esc(sub)}</small>${note ? `<small>${esc(note)}</small>` : ""}</div>`;
 }
 function costHTML(c) {
@@ -539,7 +567,7 @@ function renderLedger() {
     let bestNote = c.best && c.best.i.id !== "jev" && c.kind !== "wait" ? `Top decision model: ${short(c.best.i)} ${fmtScore(c.best.e.quality.score)}` : "";
     if (s === "profanity" && c.kind !== "wait") {
       const oj = suiteOf("jev", "word_filters"), ob = suiteOf("bedrock", "word_filters");
-      if (oj && ob) bestNote = `Word filters, equal weight: ${fmtScore(oj.task_score)} vs ${fmtScore(ob.task_score)}`;
+      if (oj && ob) bestNote = `Word filters, component average: ${fmtScore(oj.task_score)} vs ${fmtScore(ob.task_score)}`;
     }
     if (c.kind !== "wait" && c.j.sensitivity && c.b.sensitivity)
       bestNote = `Without format-inferred SSN labels: ${fmtScore(c.j.sensitivity.score)} vs ${fmtScore(c.b.sensitivity.score)}`;
@@ -553,7 +581,7 @@ function renderLedger() {
   const keySvg = (col, soft) => `<svg viewBox="0 0 26 12" aria-hidden="true"><line x1="2" x2="24" y1="6" y2="6" stroke="${col}" stroke-width="5" stroke-linecap="round" opacity="0.32"/><circle cx="13" cy="6" r="5" fill="${col}"/></svg>`;
   return `<section aria-labelledby="h-verdict">
     <h2 id="h-verdict">Jev against Bedrock, capability by capability</h2>
-    <p class="sub">Task score from 40 to 100: the mean of catching violations and passing benign traffic, on held-out test rows with thresholds frozen beforehand. Bars are 95% intervals. A win needs intervals that do not overlap. Overlapping intervals mean no clear difference, not that the two are equal.</p>
+    <p class="sub">Task score from 40 to 100: the mean of catching violations and passing benign traffic, on held-out test rows with thresholds frozen beforehand. Bars are each system's own 95% interval. The verdict uses the paired difference, Jev minus Bedrock on the same test rows: "ahead" when its 95% interval excludes zero, "no clear difference" when it includes zero, which does not mean the two are equal. A 100 to 100 interval means no errors on these rows, not certain accuracy on all messages.</p>
     <div class="ledger">
       <div class="lrow lhead" aria-hidden="true"><span>Capability</span><span style="display:flex;justify-content:space-between"><span>40</span><span>70</span><span>100</span></span><span>Verdict</span><span>Cost per 1,000: Jev · Bedrock</span></div>
       ${rows}
@@ -687,7 +715,7 @@ function b2Of(e) { return e && e.bias && e.bias.pairs ? e.bias : null; }
 function b2Note() {
   const n = Math.max(0, ...state.data.implementations.map((i) => (b2Of(entry(i.id, "bias", "guardrail_fairness")) || {}).pairs || 0));
   return n
-    ? `B2 is provisional: ${n} counterfactual test pairs with single-AI reference labels, after hard and unresolved pairs were omitted. One flip is one pair, so read B2 as individual cases, not a rate.`
+    ? `${ownerReviewed() ? `B2: ${n} counterfactual test pairs, labels drafted by one AI reviewer and reviewed by the project owner,` : `B2 is provisional: ${n} counterfactual test pairs with single-AI reference labels,`} after hard and unresolved pairs were omitted. One flip is one pair, so read B2 as individual cases, not a rate.`
     : "B2 counterfactual pairs await review.";
 }
 function biasBlock() {
@@ -711,7 +739,7 @@ function biasBlock() {
       <span class="bb-track"><span class="bb-fill" style="width:${v}%;background:${col}"></span></span><span class="bb-v">${fmtScore(v)}</span><span class="bb-n">n=${nOf(e, track)}</span></button></td>`;
   };
   return `<div class="biaswrap"><table class="biastab">
-    <thead><tr><th>Implementation</th><th>Moderation on identity-related comments (B1)</th><th>Answers "unknown" when the context does not say (BBQ, B3)</th><th class="b2h">Flips when only the identity changes (B2, provisional)</th></tr></thead>
+    <thead><tr><th>Implementation</th><th>Moderation on identity-related comments (B1)</th><th>Answers "unknown" when the context does not say (BBQ, B3)</th><th class="b2h">Flips when only the identity changes (B2, ${ownerReviewed() ? "owner-reviewed" : "labels awaiting review"})</th></tr></thead>
     <tbody>${rows.map(({ i, b1, b3 }) => `<tr><td class="name"><span class="sw" style="background:${hue(i) === "dm" ? "var(--dm)" : hue(i) === "br" ? "var(--br)" : "var(--base)"}"></span>${esc(short(i))}</td>${cellFor(i, b1, "guardrail_fairness")}${cellFor(i, b3, "decision_bias")}${cellFor(i, b1, "b2")}</tr>`).join("")}</tbody>
   </table></div>`;
 }
@@ -733,12 +761,12 @@ function renderGrid() {
     <div class="grid">${CHARTS.map(panel).join("")}</div>`;
 }
 function overallAside() {
-  const prov = state.data.provisional;
+  const prov = !ownerReviewed() && state.data.provisional;
   return `<h3>Reading the overall</h3>
     <ul class="notes">
       <li><strong>Cost is a mix of category checks.</strong> It is the mean of the six category costs per 1,000 checks, each measured separately; word filters count both of their checks. It is not the price of one call.</li>
-      ${prov ? `<li><strong>Provisional.</strong> Denied topics and the profanity half of word filters use single-AI reference labels, not independent human review. The other categories are unchanged from the corrected five-category results.</li>` : ""}
-      <li><strong>Quality</strong> is the equal-weight mean of the six category scores, with a paired 95% interval.</li>
+      ${prov ? `<li><strong>Human label review pending.</strong> ${profProv() ? "Denied topics and the profanity half of word filters use" : "Denied topics uses"} single-AI reference labels, not independent human review.${profProv() ? "" : " Profanity now scores against Civil Comments' rater labels (dataset v1.3)."} The latest PII result uses the replacement NVIDIA Nemotron-PII test set; the other original categories retain their corrected results.</li>` : ""}
+      <li><strong>Quality</strong> is the equal-weight mean of the six category scores, with a paired 95% interval. Word filters enters as a component average of its two checks.</li>
       <li><strong>Bias is kept separate.</strong> It is not in this score; see its own section below.</li>
       <li><strong>Speed is compared per category.</strong> No single call spans six categories.</li>
     </ul>`;
@@ -751,13 +779,13 @@ function viewsNote(s) {
   return `<p class="off"><strong>Post-hoc views</strong>, Jev then Bedrock, primary score to view. ${vs.map((v) => `${esc(v.label.charAt(0).toUpperCase() + v.label.slice(1))} (${v.rows_dropped} rows): Jev ${f(v, "jev")}, Bedrock ${f(v, "bedrock")}.`).join(" ")} Same frozen thresholds; the primary score stands.</p>`;
 }
 function panelNote(s) {
-  if (s === "overall") return `<p class="off">Overall cost is a mix of category checks, not the price of one call: the mean of the six category costs per 1,000 checks, each measured separately, with word filters counting both of its checks.${state.data.provisional ? " Provisional: two of the six categories (denied topics, and profanity within word filters) use single-AI reference labels." : ""} Bias is not in this score.</p>`;
+  if (s === "overall") return `<p class="off">Overall cost is a mix of category checks, not the price of one call: the mean of the six category costs per 1,000 checks, each measured separately, with word filters counting both of its checks.${!ownerReviewed() && state.data.provisional ? (profProv() ? " Human label review pending: two of the six categories (denied topics, and profanity within word filters) use single-AI reference labels." : " Human label review pending: denied topics, one of the six categories, uses single-AI reference labels.") : ""} Bias is not in this score.</p>`;
   if (s === WF) {
     const j = entry("jev", "word_filters"), b = entry("bedrock", "word_filters"), jp = entry("jev", "profanity"), bp = entry("bedrock", "profanity");
     const sub = scored(j) && scored(b) && scored(jp) && scored(bp)
       ? ` Custom words ${fmtScore(j.quality.score)} vs ${fmtScore(b.quality.score)}; profanity ${fmtScore(jp.quality.score)} vs ${fmtScore(bp.quality.score)} (Jev vs Bedrock).` : "";
     const rx = entry("regex", "word_filters");
-    return `<p class="off">Equal-weight mean of two checks, each measured on its own rows; cost is their sum.${sub}${scored(rx) ? ` The regex word list checks custom words only (${fmtScore(rx.quality.score)}), so it has no category score.` : ""}</p>`;
+    return `<p class="off">Component-average score: the equal-weight mean of two checks, each measured on its own test rows, not both detectors running together on every message. Cost is the sum of the two checks.${sub}${scored(rx) ? ` The regex word list checks custom words only (${fmtScore(rx.quality.score)}), so it has no category score.` : ""}</p>`;
   }
   return "";
 }
@@ -773,7 +801,7 @@ function biasPanel() {
       <div class="wide-head">
         <div><h3>Bias, exploratory</h3>
         <p class="desc">${esc(DESC.bias)}. B1 is balanced accuracy on comments that mention identities. B3 is BBQ accuracy on questions whose context does not give the answer, so the right answer is "unknown". Bedrock does not answer B3 questions: not applicable, not zero.</p></div>
-        <p class="off">Read these as exploratory diagnostics, not a fairness ranking. The selected cases are too sparse and unmatched for group comparisons: discrim-eval's 50 cases span 31 scenarios, so demographic groups mostly answered different questions, and Civil Comments has 1 to 18 comments per identity. No cost or latency was recorded per bias run, so bias has no cost axis. These are summary scores without intervals: at these sample sizes, read gaps under about ten points as noise. ${b2Note()} Identity groups within B1 are too small to compare one group with another.</p>
+        <p class="off">Read these as exploratory diagnostics, not a fairness ranking. The selected cases are too sparse and unmatched for group comparisons: discrim-eval's 50 cases span 31 scenarios, so demographic groups mostly answered different questions, and Civil Comments has 1 to 18 comments per identity. No cost or latency was recorded per bias run, so bias has no cost axis. These summary scores have no intervals; the small, uneven samples do not support a reliable fairness ranking. ${b2Note()} Identity groups within B1 are too small to compare one group with another.</p>
       </div>
       ${biasBlock()}
     </div>`;
@@ -784,11 +812,11 @@ function renderCharts() {
     <div class="bar">
       <div>
         <h2 id="h-charts">${chartsTitle(state.axis)}</h2>
-        <p class="sub" style="margin:0">One overall chart and six category charts on shared axes. Every point is a measured result on the frozen test split; nothing is estimated or drawn at zero. Up is better; left is cheaper or faster. Select a point for its details.</p>
+        <p class="sub" style="margin:0">One overall chart and six category charts on shared axes. Quality comes from the frozen test split. Costs use recorded API usage or allocated serving time at list prices; latency comes from serial measurements. Missing measurements have no plotted point. Up is better; left is cheaper or faster. Select a point for its details.</p>
       </div>
       <div class="seg" role="group" aria-label="Horizontal axis">
-        <button type="button" data-axis="cost" aria-pressed="${state.axis === "cost"}">Cost</button>
-        <button type="button" data-axis="p95" aria-pressed="${state.axis === "p95"}">p95 latency, serial</button>
+        <button type="button" data-axis="cost" aria-pressed="${state.axis === "cost"}">Cost per 1,000 checks</button>
+        <button type="button" data-axis="p95" aria-pressed="${state.axis === "p95"}">Response time · p95 (serial)</button>
       </div>
     </div>
     <div id="grid">${renderGrid()}</div>
@@ -829,7 +857,7 @@ const BASIS = { human: "human", llm: "LLM", automated: "automated", deterministi
 function renderScope() {
   const dq = state.data.data_quality || [];
   if (!dq.length) return "";
-  const src = (q) => q.sources.map((x) => `${esc(x.source.replace(/_/g, " "))}: ${x.n} ${esc(x.role.replace(/_/g, " "))}, ${esc(BASIS[x.label_basis] || x.label_basis)} labels`).join("<br>") || `<span class="na">none yet</span>`;
+  const src = (q) => q.sources.map((x) => `${esc(x.source.replace(/_/g, " "))}: ${x.n} ${esc(x.role.replace(/_/g, " "))}, ${esc(BASIS[x.label_basis] || x.label_basis)} labels${x.review ? `, reviewed by the ${esc(x.review)}` : ""}`).join("<br>") || `<span class="na">none yet</span>`;
   return `<section aria-labelledby="h-scope">
     <h2 id="h-scope">What the test data can and cannot show</h2>
     <p class="sub">Where each capability's test rows come from, how they were labelled, and the claim they support. Groups count source documents, conversations or templates; rows from one group are not independent evidence.</p>
@@ -851,14 +879,14 @@ function renderTable() {
   const cell = (v, f) => (v === null || v === undefined ? `<td class="na">n/a</td>` : `<td>${esc(f ? f(v) : v)}</td>`);
   let body = "";
   for (const s of ["overall", ...ROWS.flatMap((r) => (r === "profanity" ? [r, WF] : [r]))]) {
-    body += `<tr class="grp"><td colspan="11">${esc(s === "overall" ? "Overall, all six categories" : s === WF ? label(s) + ", category: equal weight, cost summed" : label(s))}</td></tr>`;
+    body += `<tr class="grp" data-category="${s}"><td colspan="11">${esc(s === "overall" ? "Overall, all six categories" : s === WF ? label(s) + ", component-average score, cost summed" : label(s))}</td></tr>`;
     const rows = rowsOf(s).filter((r) => r.entry.status === "evaluated")
       .sort((a, b) => b.entry.quality.score - a.entry.quality.score);
     if (!rows.length) body += `<tr><td colspan="11" class="na" style="text-align:left">${s === "overall" ? "Ranked only when all six categories are scored; never averaged over five." : "Not scored yet. Test rows await human review."}</td></tr>`;
     for (const { impl, entry: e } of rows) {
       const h = hue(impl), i = iv(e) || {};
       const cost = e.cost && e.cost.zero_tariff && e.cost.usd_per_1000 === 0 ? "$0 (free)" : e.cost && isNum(e.cost.usd_per_1000) ? fmtUSD(e.cost.usd_per_1000) : "not measured";
-      body += `<tr class="row" tabindex="0" data-key="${esc(impl.id)}" data-suite="${s}">
+      body += `<tr class="row" data-category="${s}" tabindex="0" data-key="${esc(impl.id)}" data-suite="${s}">
         <td class="name"><span class="sw" style="background:${h === "dm" ? "var(--dm)" : h === "br" ? "var(--br)" : "var(--base)"}"></span>${esc(short(impl))}</td>
         <td>${esc(fmtScore(e.quality.score))}</td>
         ${cell(cost)}
@@ -875,13 +903,14 @@ function renderTable() {
   }
   return `<section aria-labelledby="h-table">
     <div class="bar">
-      <div><h2 id="h-table">Every number</h2><p class="sub" style="margin:0">Sorted by score within each capability. Select a row for its details.</p></div>
+      <div><h2 id="h-table">Detailed results</h2><p class="sub" style="margin:0">Sorted by score within each capability. Select a row for its details.</p></div>
       <div class="tools">
         <button class="btn" type="button" id="dl-csv"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>CSV</button>
         <button class="btn" type="button" id="dl-json"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>JSON</button>
       </div>
     </div>
-    <div class="tablewrap"><table class="all">
+    <label class="table-filter" for="category-filter">Show category <select id="category-filter"><option value="all">All categories</option>${["overall",...ROWS,WF].map(s=>`<option value="${s}">${esc(baseLabel(s))}</option>`).join("")}</select></label>
+    <div class="tablewrap"><table class="all" id="results-table">
       <thead><tr><th>Implementation</th><th>Score</th><th>Cost per 1,000</th><th>95% interval</th><th>Recall</th><th>Benign pass</th><th>Recall at 5% FPR</th><th>p50 serial</th><th>p95 serial</th><th>Rows</th><th>Failed</th></tr></thead>
       <tbody>${body}</tbody>
     </table></div>
@@ -898,23 +927,26 @@ function download(name, text, type) {
 /* ---------- method ---------- */
 function renderMethod() {
   const d = state.data;
-  const blockers = [...(d.blockers || []), ...(d.disclosures || [])].map((b) => `<li>${esc(b.charAt(0).toUpperCase() + b.slice(1))}.</li>`).join("");
+  const blockers = [...(d.blockers || []), ...(d.disclosures || [])].map((b) => `<li>${esc(b.charAt(0).toUpperCase() + b.slice(1))}${/[.!?]$/.test(b.trim()) ? "" : "."}</li>`).join("");
+  const accepted = (d.accepted_blockers || []).map((x) => `<li>Accepted by ${esc(x.accepted_by)} on ${esc(x.accepted_at)} (${esc(x.record)}): evaluator line "${esc(x.blocker)}". Basis: ${esc(x.basis || "")}.</li>`).join("");
   return `<section aria-labelledby="h-method">
     <h2 id="h-method">How to read this, and what it does not show</h2>
     <div class="cols">
       <div>
         <h3>What is compared</h3>
-        <p>Complete guardrail implementations: a decision model with its questions, decision rule and threshold, against Amazon Bedrock Guardrails with its supported configuration. Each was tuned on separate tuning rows, frozen, then run once on the held-out test rows.</p>
+        <p>${esc(d.scope ? d.scope.compares : "")} Each was tuned on separate tuning rows, frozen, then run once on the held-out test rows. ${esc(d.scope ? d.scope.reference : "")}</p>
+        <p>${esc(d.scope ? d.scope.claim : "")}</p>
+        ${d.scope && d.scope.not_tested ? `<h3>Not tested</h3><ul>${d.scope.not_tested.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
         <h3>The score</h3>
         <p>${esc(d.benchmark.headline_metric)}. Subtasks count equally within a capability. Intervals are 95% ${esc((iv(d.entries.find((e) => iv(e))) || {}).method || "bootstrap")}. They measure sampling uncertainty only, not label errors, source artifacts or possible exposure of these public datasets during model training.</p>
         <h3>Cost and latency</h3>
         <p>${esc(d.cost_basis.notes)} ${esc(d.latency_basis.notes)}</p>
       </div>
       <div>
-        <h3>Limits of this run</h3>
-        <ul>${blockers}</ul>
-        ${(d.corrections || []).length ? `<h3>Corrections after the run</h3><ul>${d.corrections.map((c) => `<li><strong>${esc(c.title)}.</strong> ${esc(c.detail)}${c.code_commit ? ` Code <code>${esc(c.code_commit)}</code>.` : ""}</li>`).join("")}</ul>` : ""}
+        <details class="review-details"><summary>Review status, publication checks and limitations</summary><ul>${accepted}${blockers}</ul></details>
+        ${(d.corrections || []).length ? `<details class="review-details"><summary>Corrections and run history</summary><ul>${d.corrections.map((c) => `<li><strong>${esc(c.title)}.</strong> ${esc(c.detail)}${c.code_commit ? ` Code <code>${esc(c.code_commit)}</code>.` : ""}</li>`).join("")}</ul></details>` : ""}
         <h3>Reproduce</h3>
+        ${d.benchmark.dataset_url ? `<p>Public dataset: <a href="${esc(d.benchmark.dataset_url)}">Gold Rails ${esc(d.benchmark.public_release || "")}</a>. ${esc(d.benchmark.public_note || "")} This page is served locally. Review status and publication checks are listed above.</p>` : ""}
         <p>Results file <a href="${esc(resultsPath())}">${esc(resultsPath())}</a>, dataset ${esc(d.benchmark.dataset_version)} (<code>${esc((d.benchmark.dataset_sha256 || "").slice(0, 12))}</code>), release manifest <code>${esc(d.benchmark.release_manifest || "n/a")}</code>.</p>
       </div>
     </div>
@@ -976,9 +1008,13 @@ function closeDetail() {
 /* ---------- assemble ---------- */
 function render() {
   renderOpening();
-  $("main").innerHTML = renderLedger() + renderCharts() + renderBias() + renderScope() + renderTable() + renderMethod();
+  $("main").innerHTML = renderOverview() + renderLedger() + renderCharts() + renderTable() + renderBias() + renderScope() + renderMethod();
   $("foot-right").textContent = `Generated ${state.data.benchmark.generated_at}. Tariffs dated ${state.data.cost_basis.tariff_date || "n/a"}.`;
 }
+document.addEventListener("change", (ev) => {
+  if (ev.target.id !== "category-filter") return;
+  document.querySelectorAll("#results-table tr[data-category]").forEach(row => { row.hidden = ev.target.value !== "all" && row.dataset.category !== ev.target.value; });
+});
 document.addEventListener("click", (ev) => {
   const ax = ev.target.closest(".seg button");
   if (ax) return switchAxis(ax.dataset.axis);

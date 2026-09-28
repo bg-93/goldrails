@@ -21,7 +21,8 @@ from site_results import IMPL, OVERALL_ID  # noqa: E402  the converter's own sys
 RES = REPO / "benchmark" / "results" / "first-benchmark"
 SUB = REPO / "benchmark" / "subsets" / "first-benchmark"
 SITE = REPO / "site" / "leaderboard" / "results.json"
-MANIFESTS = ("freeze-manifest.json", "freeze-extension-1.json", "freeze-extension-2.json", "freeze-extension-3.json")
+MANIFESTS = ("freeze-manifest.json", "freeze-extension-1.json", "freeze-extension-2.json", "freeze-extension-3.json",
+             "freeze-extension-4.json")
 CORE = ("content", "prompt_attacks", "word_filters", "sensitive_info", "grounding")
 SITE_SUITE = {"sensitive_info": "sensitive_information"}
 TOL = 1e-3   # the page rounds scores to 4 places and costs to 5
@@ -52,9 +53,10 @@ def git(*args: str) -> str:
 
 
 def main() -> int:
-    pick = next(p for p in (RES / "leaderboard-final.json", RES / "leaderboard-v1.2.json", RES / "leaderboard-provisional.json")
-                if p.exists())
-    v12 = pick.name == "leaderboard-v1.2.json"   # PII replaced; the corrected view's PII arms are the old source
+    pick = next(p for p in (RES / "leaderboard-final.json", RES / "leaderboard-v1.3.json", RES / "leaderboard-v1.2.json",
+                            RES / "leaderboard-provisional.json") if p.exists())
+    v13 = pick.name == "leaderboard-v1.3.json" or "v1_3" in (load(pick).get("provenance") or {})   # Civil Comments profanity
+    v12 = v13 or pick.name == "leaderboard-v1.2.json"   # PII replaced; the corrected view's PII arms are the old source
     site, lb = load(SITE), load(pick)
     corrected, bias = load(RES / "leaderboard-corrected.json"), load(RES / "bias.json")["bias"]
     site_impl = {i["id"]: i for i in site["implementations"]}
@@ -134,8 +136,39 @@ def main() -> int:
         t3 = git("log", "--diff-filter=A", "--format=%ct %h", "--", "benchmark/results/first-benchmark/pii-v12-test.jsonl").splitlines()
         if not m3 or not t3 or int(m3[-1].split()[0]) > int(t3[-1].split()[0]):
             bad.append(f"extension 3 {m3[-1] if m3 else None} not before the PII test ledger {t3[-1] if t3 else None}")
+    if (SUB / "freeze-extension-4.json").exists():
+        m4 = git("log", "--diff-filter=A", "--format=%ct %h", "--", "benchmark/subsets/first-benchmark/freeze-extension-4.json").splitlines()
+        t4 = git("log", "--diff-filter=A", "--format=%ct %h", "--", "benchmark/results/first-benchmark/prof-v13-test.jsonl").splitlines()
+        if not m4 or not t4 or int(m4[-1].split()[0]) > int(t4[-1].split()[0]):
+            bad.append(f"extension 4 {m4[-1] if m4 else None} not before the profanity test ledger {t4[-1] if t4 else None}")
     check("extension manifests committed before the test rows they govern", not bad,
           "; ".join(bad) or f"ext1 {ext1.split()[1]} before {first_ext_test.split()[1]}; ext2 {ext2.split()[1]} before {later[0].split()[1]}")
+
+    # 3b. v1.3: the implementations file that changed the profanity question set predates every profanity call.
+    if v13:
+        from datetime import datetime, timezone
+        ct = git("log", "--diff-filter=A", "--format=%ct %h", "--", "benchmark/subsets/first-benchmark/implementations-v1.3.json").split()
+        first = min(a["at"] for n in ("prof-v13-tune", "prof-v13-test") for line in (RES / f"{n}.jsonl").open(encoding="utf-8")
+                    for a in json.loads(line)["attempts"])
+        first_t = datetime.fromisoformat(first.replace("Z", "+00:00")).timestamp()
+        check("implementations-v1.3 committed before the first profanity call (tuning or test)",
+              bool(ct) and int(ct[0]) < first_t,
+              f"{ct[1] if ct else None} at {datetime.fromtimestamp(int(ct[0]), timezone.utc).isoformat() if ct else None}; first call {first}")
+
+    # 3c. v1.3: the extension-specific freeze validation passed on this exact leaderboard.
+    if v13:
+        vp = RES / "extension-freeze-validation.json"
+        v = load(vp) if vp.exists() else {}
+        check("extension-specific freeze validation passed for every arm of this leaderboard",
+              v.get("passed") is True and {x["arm"] for x in v.get("arms", [])} == {a["arm_id"] for a in lb["arms"]}
+              and v.get("arms_checked") == len(lb["arms"])
+              and any("extension-freeze-validation.json" in d for d in site.get("disclosures", [])),
+              f"{v.get('arms_checked')} arms, {len(v.get('arms_failed') or [])} failed" if v else "missing")
+        later = re.compile(r"v0\.0\.[2-9]|v0\.[1-9]\.")
+        check("public version is v0.0.1 on the page, with no later public version label",
+              site["benchmark"].get("public_release") == "v0.0.1" and not later.search(json.dumps(site))
+              and not later.search((REPO / "site/leaderboard/index.html").read_text(encoding="utf-8")),
+              site["benchmark"].get("public_note") or "")
 
     # 4. Overall: score, interval, cost, per-category values and ranking match the frozen overall block.
     bad, ranked = [], []
@@ -161,7 +194,8 @@ def main() -> int:
             bad.append(f"{name}: overall cost is not the mean of the six category costs")
         wf = imp["suites"]["word_filters"]
         parts = [next(a for a in lb["arms"] if a["arm_id"] == arm_id) for arm_id in (wf.get("subtask_arms") or {}).values()]
-        if len(parts) != 2 or not close(sum(p["cost"]["usd_per_1000"] for p in parts), wf["usd_per_1000"], 1e-6):
+        # three values each stored to 6 places: rounding alone can separate them by 1.5e-6
+        if len(parts) != 2 or not close(sum(p["cost"]["usd_per_1000"] for p in parts), wf["usd_per_1000"], 2e-6):
             bad.append(f"{name}: word-filters cost is not the sum of its two checks")
         if len(parts) == 2 and not close(sum(p["suite_score"]["value"] for p in parts) / 2, wf["task_score"]):
             bad.append(f"{name}: word-filters score is not the mean of its two checks")
@@ -195,13 +229,104 @@ def main() -> int:
 
     # 6. Provisional marking: the AI-labelled categories and the overall, and their label basis on the page.
     prov = set((site.get("provisional") or {}).get("suites") or [])
-    check("denied topics, profanity and overall are marked provisional", {"denied_topics", "profanity", "overall"} <= prov,
-          ", ".join(sorted(prov)))
+    ai = ("denied_topics",) if v13 else ("denied_topics", "profanity")   # v1.3: profanity has human rater labels
+    rev = site.get("label_review")
     dq = {q["suite"]: q for q in site.get("data_quality") or []}
-    llm = all(s["label_basis"] == "llm" for k in ("denied_topics", "profanity") for s in dq.get(k, {}).get("sources", [])) \
-        and all(dq.get(k, {}).get("test_cases") for k in ("denied_topics", "profanity"))
-    check("data scope shows the AI-labelled rows with label basis llm", llm,
-          f"denied topics {dq.get('denied_topics', {}).get('test_cases')}, profanity {dq.get('profanity', {}).get('test_cases')}")
+    if rev:   # 6a. a recorded owner review for this exact release manifest; nothing current still calls labels provisional
+        sub = load(REPO / "benchmark/subsets" / site["benchmark"]["dataset_version"].split()[-1] / "manifest.json")
+        rel = REPO / "dataset/release" / sub["release"]
+        rec = load(REPO / rev["record"])
+        ok = (rec["release_manifest_sha256"] == hashlib.sha256((rel / "manifest.json").read_bytes()).hexdigest()
+              and rec["independent_two_reviewer_adjudication"] is False and not rev["independent_two_reviewer_adjudication"]
+              and not git("status", "--porcelain", rev["record"]))
+        check("owner label review is recorded for this release manifest, committed, and not called independent", ok,
+              f"{rev['record']} ({rec['reviewer']}, {rec['role']}, {rec['recorded_at'][:10]})")
+        check("no suite is marked provisional once the review is recorded", not prov and site.get("provisional") is None,
+              ", ".join(sorted(prov)) or "none")
+        current = [site.get("notice", "")] + site.get("disclosures", []) + site.get("blockers", []) + \
+            [q.get("supports", "") + " " + q.get("limits", "") for q in dq.values()] + \
+            [e.get("status_note") or "" for e in site["entries"]]
+        stale = [t[:90] for t in current if re.search(r"provisional|await(s|ing)? (independent )?(human )?review|"
+                                                       r"single-AI reference labels", t, re.I)]
+        check("current page text (corrections aside) has no provisional or awaiting-review statement", not stale,
+              "; ".join(stale) or f"{len(current)} strings")
+        page = (REPO / "site/leaderboard/index.html").read_text(encoding="utf-8")
+        check("the page renders review status from results.json, with no text-rewriting layer",
+              "reviewText" not in page and ".replace(/Provisional" not in page, "index.html")
+        origin = all(x.get("review") == "project owner" for q in dq.values() for x in q["sources"]) and \
+            all(x["label_basis"] == "llm" for k in ai for x in dq[k]["sources"])
+        check("label origins are kept beside the owner review (denied topics stays label basis llm)", origin,
+              f"denied topics {dq.get('denied_topics', {}).get('test_cases')} rows")
+    else:
+        want = set(ai) | {"overall"}
+        check(", ".join(ai) + " and overall are marked provisional" + (", profanity is not" if v13 else ""),
+              prov == want if v13 else want <= prov, ", ".join(sorted(prov)))
+        llm = all(s["label_basis"] == "llm" for k in ai for s in dq.get(k, {}).get("sources", [])) \
+            and all(dq.get(k, {}).get("test_cases") for k in ai)
+        check("data scope shows the AI-labelled rows with label basis llm", llm,
+              f"denied topics {dq.get('denied_topics', {}).get('test_cases')}, profanity {dq.get('profanity', {}).get('test_cases')}")
+    if v13:
+        src = dq.get("profanity", {}).get("sources", [])
+        n = sum(x["n"] for x in src)
+        check("profanity scope is the 160 Civil Comments rows with human rater labels, lexicon rows outside it",
+              n == 160 and all(x["source"] == "civil_comments_obscene" and x["label_basis"] == "human" for x in src),
+              ", ".join(f"{x['source']} {x['label_basis']} {x['role']} {x['n']}" for x in src))
+
+    # 6b. Verdicts: every paired comparison on the page is the evaluator's paired interval, Jev minus Bedrock.
+    if site.get("comparisons") is not None:
+        by_id = {a["arm_id"]: a for a in lb["arms"]}
+        want = {}
+        for su, block in lb["suites"].items():
+            for p in block["paired_differences"]:
+                A, B = by_id[p["a"]], by_id[p["b"]]
+                ids = (page_id(A["system"]), page_id(B["system"]))
+                if set(ids) == {"jev", "bedrock"} and p.get("ci") and A["question_set"] in B["question_set"] + A["question_set"] \
+                        and (A["question_set"] == B["question_set"] or su != "word_filters"):
+                    sign = 1 if ids[0] == "jev" else -1
+                    want.setdefault(su, []).append((sign * p["difference"], sorted((sign * p["ci"]["low"], sign * p["ci"]["high"])), p["separated"]))
+        for p in lb["overall"]["paired_differences"]:
+            if {p["a"], p["b"]} == {"jev-1.13.0", "bedrock-guardrails"}:
+                sign = 1 if p["a"] == "jev-1.13.0" else -1
+                want["overall"] = [(sign * p["difference"], sorted((sign * p["ci"]["low"], sign * p["ci"]["high"])), p["separated"])]
+        got = site["comparisons"]
+        flat = [w for ws in want.values() for w in ws]
+        bad = [c["suite"] for c in got if c["suite"] != "word_filters_category" and not any(
+            close(c["difference"], d) and close(c["ci"]["low"], ci[0]) and close(c["ci"]["high"], ci[1]) and c["separated"] == sep
+            for d, ci, sep in flat)]
+        rows = {"content", "prompt_attacks", "denied_topics", "word_filters", "profanity", "sensitive_information", "grounding", "overall"}
+        missing = rows - {c["suite"] for c in got}
+        check("every verdict row has the evaluator's paired Jev-minus-Bedrock interval", not bad and not missing,
+              "; ".join(bad + sorted(missing)) or f"{len(got)} comparisons")
+        wfc = next((c for c in got if c["suite"] == "word_filters_category"), None)
+        if wfc:   # derived: half the profanity interval, valid only because the custom-word difference is 0 in every replicate
+            prof = next(c for c in got if c["suite"] == "profanity")
+            ov = {page_id(i["implementation"]): i["suites"]["word_filters"]["task_score"] for i in lb["overall"]["implementations"]}
+            words = [a for a in lb["arms"] if a["question_set"] == "v1-f4-words" and page_id(a["system"]) in ("jev", "bedrock")]
+            ok = (all(a["suite_score"]["value"] == 100.0 for a in words) and len(words) == 2
+                  and close(wfc["difference"], ov["jev"] - ov["bedrock"]) and close(wfc["ci"]["low"], prof["ci"]["low"] / 2)
+                  and close(wfc["ci"]["high"], prof["ci"]["high"] / 2))
+            check("word-filter category interval is half the profanity interval, with both perfect on custom words", ok,
+                  f"{wfc['difference']:+.2f} [{wfc['ci']['low']:.2f}, {wfc['ci']['high']:.2f}]")
+
+    # 6c. Claims, costs and the word-filter aggregate say what was measured.
+    scope = site.get("scope") or {}
+    text = json.dumps(site)
+    check("claim is scoped to configured detectors, with untested capabilities listed and no causal vocabulary claim",
+          "configured guardrail detectors across six selected task suites" in scope.get("compares", "").lower()
+          and len(scope.get("not_tested") or []) >= 5 and "Complete guardrail implementations" not in
+          (REPO / "site/leaderboard/index.html").read_text(encoding="utf-8")
+          and not re.search(r"vocabular(y|ies) differ", text), f"{len(scope.get('not_tested') or [])} untested capabilities")
+    cb = site.get("cost_basis", {})
+    selfhosted = [e for e in site["entries"] if site_impl.get(e["implementation"], {}).get("type") == "self_hosted"
+                  and e["suite"] not in ("overall", "bias") and (e.get("cost") or {}).get("usd_per_1000") is not None]
+    check("self-hosted costs are labelled normalized estimates, with each pass's actual zone recorded apart from pricing",
+          cb.get("self_hosted_cost") == "normalized estimate" and {r["zone"] for r in cb.get("run_locations", [])} >= {"us-east4-a", "us-central1-a"}
+          and all("normalized" in e["cost"].get("estimate", "") for e in selfhosted),
+          f"{len(selfhosted)} entries; zones {sorted({r['zone'] for r in cb.get('run_locations', [])})}")
+    wf = [e for e in site["entries"] if e["suite"] == "overall"]
+    check("word filters is described as a component average wherever the composed value is carried",
+          all("component average" in ((e.get("suites") or {}).get("word_filters") or {}).get("score_basis", "") for e in wf)
+          and any("component average" in d for d in site.get("disclosures", [])), f"{len(wf)} overall entries")
 
     # 7. Bias is outside the score and matches bias.json, B2 with its pair count.
     bad = []
@@ -241,9 +366,19 @@ def main() -> int:
 
     # 10. Nothing on the page claims publication: blockers present, notice says not for publication.
     blocked = bool(lb["publication_blockers"])
-    check("page carries exactly the leaderboard's publication blockers, and says not for publication while any stand",
-          site.get("blockers") == lb["publication_blockers"] and (("Not for publication" in site.get("notice", "")) == blocked),
-          "; ".join(site.get("blockers") or []) or "no blockers")
+    acc = site.get("accepted_blockers") or []
+    acc_ok = True
+    for x in acc:   # each accepted line is named in a committed, confirmed approval this result used
+        rec = SUB / x["record"]
+        a = load(rec)
+        acc_ok &= (x["blocker"] in (a.get("accepted_blockers") or []) and bool((a.get("confirmation") or {}).get("statement"))
+                   and not git("status", "--porcelain", str(rec.relative_to(REPO)))
+                   and any(Path(v["approval_path"]).name == x["record"] for v in lb.get("analysis_versions") or []))
+    open_ = [b for b in lb["publication_blockers"] if b not in {x["blocker"] for x in acc}]
+    check("page carries every open evaluator blocker, owner-accepted ones only with a confirmed approval, and says not "
+          "for publication while any stay open",
+          site.get("blockers") == open_ and acc_ok and (("Not for publication" in site.get("notice", "")) == bool(open_)),
+          f"open: {'; '.join(open_) or 'none'}; accepted: {len(acc)}")
 
     out = {"checked_at_commit": git("rev-parse", "--short", "HEAD"), "results": str(SITE.relative_to(REPO)),
            "frozen": str(pick.relative_to(REPO)),

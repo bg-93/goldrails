@@ -89,3 +89,86 @@ PII: Jev 96.8 [95.8, 97.7], Bedrock 96.7 [94.1, 98.8], no clear difference, as b
 80.5, difference 11.4 [8.9, 13.8]. The earlier PII results, their post-hoc views and the strict SSN view stay in
 `leaderboard-provisional.json`, `leaderboard-pii-strict.json` and `sensitivity-2026-09-24.json`. Driver's licence
 numbers are not measured: the source has no such label.
+
+## Profanity reference task changed: Civil Comments' own labels, dataset v1.3 (28 September 2026)
+
+The profanity subtask had been scored against one AI reviewer's labels on comments picked with a word list. It is now
+"Profanity or obscenity — Civil Comments": the decision models answer the Civil Comments raters' own question, and
+the reference is the raters' `obscene` share (google/civil_comments at f2970eb3, CC0; Borkan et al. 2019). A comment
+is profane at a share of 0.5 or more and clean at 0. These are derived binary labels, not unanimous judgments: 14,800
+comments in between are left out, as are 552 the benchmark had already used. A blind audit of the 50 tuning rows
+agreed with 45 labels and changed none (`dataset/frozen/reviews/civil-comments-obscene-tune-audit-2026-09-28/`).
+Bedrock's managed profanity filter is scored against the same labels, which measures performance against an external
+dataset, not identical implementation or vocabulary. Only the profanity files differ from v1.2; subset
+first-benchmark-v1.3 keeps every other row.
+
+| Step | Commit |
+|---|---|
+| Release v1.3, subset, question set v1-f4-obscenity and implementations-v1.3, before any profanity call | bb064b1 |
+| Extension manifest 4: thresholds fitted on the 50 tuning rows, committed before any test call | 860bde9 |
+| 160 test rows per system, 0 failures; serial latency for all seven systems; leaderboard-v1.3.json | 3f4ef15 |
+
+Profanity: Jev 93.8, Kev 4B 91.2, Kev 9B 91.2, Laya 84.4, Kev 0.8B 81.9, Open-Jev 2B 80.0, Bedrock 65.6 (recall
+0.325, benign pass 0.988). Category weights are unchanged, so each profanity change moves the overall by a twelfth.
+Overall, v1.2 to v1.3: Jev 91.9 to 91.9, Kev 9B 86.7 to 87.1, Kev 4B 86.2 to 86.5, Bedrock 80.5 to 81.1, Open-Jev 2B
+73.4 to 73.3, Kev 0.8B 71.8 to 73.1, Laya 68.8 to 69.6. No rank changes. Jev minus Bedrock is 10.8 [8.4, 13.2], down
+from 11.4. The lexicon-set results stay in `leaderboard-v1.2.json` as a separate challenge set.
+
+Two pre-registration blockers now appear because the evaluator compares the implementations file's commit time with
+the earliest test call in any ledger, and the core calls ran days earlier. implementations-v1.3.json changes only the
+profanity question set; it was committed at 07:23:30 UTC, 11 seconds before the first profanity tuning call and 11
+minutes before the first test call. The scoring code under approval 4 is unchanged, so the blockers stay listed. The
+GPU VM for this pass ran in us-central1-a; its cost uses the us-east4 rate applied everywhere else.
+
+Denied topics stays provisional. A blind packet of its 73 test rows, with the topic definitions and texts unchanged
+and no AI labels or model outputs, awaits two human reviewers (7908f81). If only labels change, the saved responses
+will be rescored without new calls and reported as a post-run reference-label correction, not a fresh independent
+test, beside the current result.
+
+## Project-owner label review and reporting changes after an independent review (28 September 2026)
+
+No score, threshold, row or label changed, and no model was called.
+
+**Label review.** The project owner reviewed every label in release v1.3 and recorded it in
+`dataset/release/v1.3/owner-review-confirmation.json`, pinned to the release manifest (sha256 4c3a7bc5). No label
+changed. Rows keep their original origin: one AI reviewer drafted the denied-topics and B2 labels (`label_basis llm`,
+`review_status ai_reviewed`), profanity uses Civil Comments rater labels, and the other suites use their sources'
+labels. This is owner review, not independent two-reviewer adjudication, and no agreement statistic exists. The
+release manifest stays as built; its `label_policy` wording is corrected in `dataset/release/v1.3/known-issues.json`.
+Statements above that call labels provisional or awaiting review describe the status before this date. The blind
+packet for the 73 denied-topics test rows stays available for an independent check.
+
+**Reporting.**
+
+- Verdicts come from the evaluator's paired difference, Jev minus Bedrock on the same rows, instead of overlap between
+  each system's own interval. No verdict changed: Jev ahead on prompt attacks, denied topics, profanity, grounding and
+  overall; no clear difference on content and sensitive information; both 100 on custom words. The word-filter
+  category has no stored paired interval. Both systems scored every custom-word row correctly, so that component's
+  difference is 0 in every bootstrap replicate and the category's interval is half the profanity interval
+  (+14.1 [10.8, 17.1]).
+- A 100 to 100 interval on a perfect sample means no errors on those rows, not certain accuracy on all messages.
+- Word filters is labelled a component average: the mean of two checks measured on their own rows, with cost summed,
+  not both detectors running together on every message.
+- Self-hosted costs are labelled normalized estimates. GCP audit logs place the core and extension passes in
+  us-east4-a, the PII v1.2 pass in us-east4-c and the profanity v1.3 pass in us-central1-a; all are priced at the
+  third-party us-east4 g2-standard-24 rate, with setup and idle time excluded.
+- The claim is scoped to configured guardrail detectors across six selected task suites, with untested capabilities
+  listed (masking, grounding relevance and others). The dataset supplies the reference answers; Bedrock is a
+  competitor.
+- Removed an unsupported explanation of Bedrock's profanity misses (vocabulary mismatch). The cause was not
+  investigated.
+
+## Contract v1.1 signed and approval 5 confirmed (28 September 2026)
+
+The project owner replied in chat to the sign-off packet (`docs/release/signoff-v0.0.1-2026-09-28.md`, commit
+5ff7e81): "go ahead, sign contract and approval 5, keep repo private".
+
+| Step | Commit |
+|---|---|
+| `benchmark/contracts/v1.1-signed.json`: the v1.1 draft with version and status changed and a signature block (contract hash 77180f6520c3ee4a; the draft, 463b3349d8c7de6e, stays as history) | aedd164 |
+| `analysis-approval-5*.json`, one per freeze manifest: frozen contract hash to the signed hash; the primary record also keeps scoring code f1abaf9a to 92a74bcc from approval 4. Each carries the owner's confirmation and accepts the two implementations-file blockers on `extension-freeze-validation.json` (50 of 50 arms) | aedd164 |
+
+`leaderboard-final.json` was rebuilt with `leaderboard_v13.py --final`, with no model calls. Every arm, score,
+interval, cost, paired difference and overall value equals `leaderboard-v1.3.json`, which stays as history under the
+draft contract and approval 4. The evaluator still prints the two implementations-file lines; the page lists them as
+accepted, with the record and basis.

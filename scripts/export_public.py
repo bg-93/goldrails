@@ -2,6 +2,11 @@
 
     uv run python scripts/export_public.py                      # build and scan into ../goldrails, report only
     uv run python scripts/export_public.py --commit              # also create the export's single commit and tag
+    uv run python scripts/export_public.py --commit              # into an existing clone: one new commit on top, no tag
+
+A revision of the public version keeps the earlier export commit and its tag: when ``--out`` already holds a git
+clone, the files are replaced in its working tree and committed on top, so the commit the first dataset upload names
+stays reachable.
 
 The private repository keeps its full history, including the freeze evidence. Deleting files in a new commit would
 leave them in that history, so the public repository starts fresh from an allowlist of committed files at HEAD:
@@ -32,6 +37,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 TAG = "v0.0.1"
+FIRST_UPLOAD = "internal dataset release v1.2, Hugging Face revision 3e3ed7f3bbed, code commit 26b578fea60c"
+CURRENT = "v1.3"   # internal dataset release of the current revision of the public version
 DATASET_URL = "https://huggingface.co/datasets/raxITLabs/goldrails"
 PUBLIC_URL = "https://github.com/raxITlabs/goldrails"
 
@@ -41,7 +48,7 @@ INCLUDE = [
     "benchmark/runs/*", "benchmark/subsets/*", "benchmark/suites/*", "benchmark/tests/*",
     "benchmark/results/first-benchmark/*", "benchmark/results/smoke-word-filters*",
     "dataset/pyproject.toml", "dataset/goldrails_dataset/*", "dataset/tests/*", "dataset/release/*",
-    "dataset/publish/v1.2-full/*", "dataset/frozen/*",
+    "dataset/publish/v1.2-full/*", "dataset/publish/v1.3-full/*", "dataset/frozen/*",
     "site/leaderboard/*", "infra/*", "scripts/export_public.py",
     "docs/README.md", "docs/14-gold-rails-v1-spec.md", "docs/16-evaluation-contract.md", "docs/17-guardrail-policy-v0.md",
     "docs/18-benchmark-structure.md", "docs/19-evaluation-contract-v1.md", "docs/20-source-audit.md",
@@ -205,7 +212,9 @@ def export_md(private: str, files: list, notes: dict) -> str:
     for n in notes.values():
         total.update(n)
     lines = ["# About this repository", "",
-             f"This is the public export of the Gold Rails benchmark, first public release `{TAG}` (internal dataset release v1.2). It was built from commit `{private}` "
+             f"This is the public export of the Gold Rails benchmark, public version `{TAG}`, revision built from internal "
+             f"dataset release {CURRENT}. The first upload of `{TAG}` used {FIRST_UPLOAD} (tag `{TAG}` in both places). "
+             f"This export was built from commit `{private}` "
              "of the private development repository by `scripts/export_public.py`, from an allowlist of files. The "
              f"dataset is published separately at {DATASET_URL}.", "",
              "The private repository keeps the full history, including the git commits that date the freeze manifests "
@@ -236,9 +245,13 @@ def main(argv=None) -> int:
     private = git("rev-parse", "HEAD")
     windows, source_ids = restricted_windows()
     tar = tarfile.open(fileobj=io.BytesIO(git("archive", "HEAD", binary=True)))
+    revise = (a.out / ".git").exists()   # an existing clone: replace the working tree, keep its history and tag
     if a.out.exists():
-        shutil.rmtree(a.out)
-    a.out.mkdir(parents=True)
+        for child in a.out.iterdir():
+            if child.name == ".git":
+                continue
+            shutil.rmtree(child) if child.is_dir() else child.unlink()
+    a.out.mkdir(parents=True, exist_ok=True)
     files, notes, problems = [], {}, defaultdict(list)
     for m in tar.getmembers():
         if not m.isfile() or not selected(m.name):
@@ -271,12 +284,15 @@ def main(argv=None) -> int:
     if a.commit:
         def g(*args):
             subprocess.run(["git", *args], cwd=a.out, check=True, capture_output=True)
-        g("init", "-q", "-b", "main")
+        if not revise:
+            g("init", "-q", "-b", "main")
         g("add", "-A")
         g("-c", f"user.name={git('config', 'user.name')}", "-c", f"user.email={git('config', 'user.email')}", "commit", "-q",
-          "-m", f"Gold Rails {TAG}: public export of private commit {private[:12]}")
-        g("tag", TAG)
-        print(f"committed and tagged {TAG} in {a.out}; not pushed")
+          "-m", f"Gold Rails {TAG}{' revision (internal dataset ' + CURRENT + ')' if revise else ''}: public export of "
+                f"private commit {private[:12]}")
+        if not revise:
+            g("tag", TAG)
+        print(f"committed{'' if revise else ' and tagged ' + TAG} in {a.out}; not pushed")
     return 0
 
 

@@ -78,10 +78,17 @@ def main(argv=None) -> int:
     ap.add_argument("--carry-over", help="an earlier subset whose frozen test results this one must keep: every test "
                     "row of every feature listed in --carry-features must be identical, or nothing is written")
     ap.add_argument("--carry-features", default="F1,F2,F4,F5,F6")
+    ap.add_argument("--cell-quota", action="append", default=[], metavar="FEATURE:SUBTASK=TUNE,TEST",
+                    help="rows per class for one cell, overriding the default quotas (e.g. F4:profanity=25,80)")
     a = ap.parse_args(argv)
+    quotas = json.loads(json.dumps(QUOTAS))
+    for q in a.cell_quota:
+        cell, sizes = q.split("=")
+        tune, test = (int(x) for x in sizes.split(","))
+        quotas["cells"][cell] = {"tune": tune, "test": test}
     rows, man = release_rows(a.release)
     eligible = ELIGIBLE + (("ai_reviewed",) if a.allow_ai_reviewed else ())
-    chosen = select(rows, a.seed, eligible=eligible)
+    chosen = select(rows, a.seed, quotas=quotas, eligible=eligible)
     if a.carry_over:
         problems = carry_over_problems(chosen, a.carry_over, a.carry_features.split(","))
         if problems:
@@ -89,7 +96,7 @@ def main(argv=None) -> int:
     out = SUBSETS / a.name / "manifest.json"
     ineligible = Counter((SUITES[r.feature], r.review_status) for r in rows if r.review_status not in eligible)
     suites_present = {SUITES[r.feature] for r in chosen if r.split == "test"}
-    doc = {"name": a.name, "release": a.release, "release_sha256": man["release_sha256"], "seed": a.seed, "quotas": QUOTAS,
+    doc = {"name": a.name, "release": a.release, "release_sha256": man["release_sha256"], "seed": a.seed, "quotas": quotas,
            "eligible_review_statuses": list(eligible), "selected_before_any_model_output": True,
            "provisional_ai_reference": a.allow_ai_reviewed,
            "subset_sha256": dataset_hash(chosen),

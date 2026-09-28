@@ -61,7 +61,20 @@ VERSIONS = {"v1.0": {"per_cell": 450, "seed": 7}, "v1.1": {"per_cell": 450, "see
                      "label_policy": ("provisional: denied topics, profanity and B2 pairs carry single-AI reference labels "
                                       "(label_basis llm, review_status ai_reviewed). PII comes from NVIDIA Nemotron-PII "
                                       "source spans; every negative passed the audit's screen and a blind AI review. Not "
-                                      "independent human annotation and not publication approval")}}
+                                      "independent human annotation and not publication approval")},
+            # v1.3: v1.2 with the profanity subtask's main sample from Civil Comments' original obscene rater labels
+            # (owner decision, 28 September 2026): "Profanity or obscenity — Civil Comments". The lexicon-selected set
+            # stays as its separate masked-spelling diagnostic; every other cell draws the same rows.
+            "v1.3": {"per_cell": 450, "seed": 7, "ai_reference": "dataset/frozen/reviews/ai-codex-2026-09-24",
+                     "plan_overrides": {"F5:pii": ["nemotron_pii", "f5_controls"], "F4:profanity": ["civil_comments_obscene"]},
+                     "cell_caps": {"F5:pii": 250, "F4:profanity": 250},
+                     "negative_reviews": "dataset/frozen/reviews/nemotron-negatives",
+                     "ai_authorization_from": "v1.1-ai",
+                     "label_policy": ("provisional: denied topics and B2 pairs carry single-AI reference labels (label_basis "
+                                      "llm, review_status ai_reviewed). Profanity uses Civil Comments' original obscene "
+                                      "rater fractions as a derived binary label (>= 0.5 yes, 0 no, intermediate excluded). "
+                                      "PII comes from NVIDIA Nemotron-PII source spans with every negative blind-reviewed. "
+                                      "Not publication approval")}}
 EXCLUSIONS = [
     "Automated Reasoning: formal verification is not detection.",
     "Indirect prompt attacks: every LLMail-Inject set tested is separable by trivial baselines (char n-gram AUROC 0.96 to 0.99); diagnostic only.",

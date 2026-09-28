@@ -86,6 +86,13 @@
           ],
           "minimum": 0,
           "maximum": 1
+        },
+        "public_note": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "How the public dataset version relates to the internal release these results use."
         }
       }
     },
@@ -115,6 +122,37 @@
         },
         "notes": {
           "type": "string"
+        },
+        "pricing_region": {
+          "type": "string",
+          "description": "The one region whose rate prices every self-hosted GPU pass."
+        },
+        "self_hosted_cost": {
+          "type": "string",
+          "description": "How to read self-hosted costs, e.g. 'normalized estimate'."
+        },
+        "run_locations": {
+          "type": "array",
+          "description": "Where each self-hosted GPU pass actually ran, from cloud audit logs; kept apart from the pricing assumption.",
+          "items": {
+            "type": "object",
+            "required": [
+              "run",
+              "zone"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "run": {
+                "type": "string"
+              },
+              "zone": {
+                "type": "string"
+              },
+              "when_utc": {
+                "type": "string"
+              }
+            }
+          }
         }
       }
     },
@@ -269,6 +307,10 @@
                 },
                 "n": {
                   "type": "integer"
+                },
+                "review": {
+                  "type": "string",
+                  "description": "Who reviewed these labels after their origin, e.g. 'project owner'. label_basis keeps the origin."
                 }
               }
             }
@@ -313,6 +355,192 @@
         "null"
       ],
       "description": "Post-hoc sensitivity views committed after the data-quality review; shown beside, never in place of, primary scores."
+    },
+    "label_review": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "A recorded human review of the current release's labels. Original label origins stay in each row and in data_quality.",
+      "required": [
+        "status",
+        "reviewer",
+        "role",
+        "scope",
+        "record",
+        "independent_two_reviewer_adjudication"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "reviewer": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "recorded_at": {
+          "type": "string"
+        },
+        "release": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "record": {
+          "type": "string"
+        },
+        "independent_two_reviewer_adjudication": {
+          "type": "boolean"
+        },
+        "label_changes": {
+          "type": "boolean"
+        },
+        "label_origins": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "description": "What is compared, what supplies the reference answers, the claim the results support, and what is not tested.",
+      "required": [
+        "compares",
+        "reference",
+        "claim",
+        "not_tested"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "compares": {
+          "type": "string"
+        },
+        "reference": {
+          "type": "string"
+        },
+        "claim": {
+          "type": "string"
+        },
+        "not_tested": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "comparisons": {
+      "type": "array",
+      "description": "Paired differences (a minus b on the same test rows) copied from the evaluator; verdicts come from these, not from overlap of separate intervals.",
+      "items": {
+        "type": "object",
+        "required": [
+          "suite",
+          "a",
+          "b",
+          "difference",
+          "ci",
+          "separated",
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "suite": {
+            "type": "string"
+          },
+          "a": {
+            "type": "string"
+          },
+          "b": {
+            "type": "string"
+          },
+          "difference": {
+            "type": "number"
+          },
+          "ci": {
+            "type": "object",
+            "required": [
+              "low",
+              "high"
+            ],
+            "properties": {
+              "low": {
+                "type": "number"
+              },
+              "high": {
+                "type": "number"
+              },
+              "level": {
+                "type": "number"
+              }
+            }
+          },
+          "separated": {
+            "type": "boolean"
+          },
+          "common_rows": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "accepted_blockers": {
+      "type": "array",
+      "description": "Evaluator publication blockers the project owner accepted in a committed, confirmed approval, with the basis.",
+      "items": {
+        "type": "object",
+        "required": [
+          "blocker",
+          "accepted_by",
+          "accepted_at",
+          "record"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "blocker": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "accepted_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "accepted_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "record": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "basis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
     }
   },
   "$defs": {
@@ -768,6 +996,10 @@
             },
             "zero_tariff": {
               "type": "boolean"
+            },
+            "estimate": {
+              "type": "string",
+              "description": "Self-hosted only: what the cost is normalized to and where the pass ran."
             }
           }
         },

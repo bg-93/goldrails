@@ -1,8 +1,8 @@
 {
- "checked_at_commit": "ca4b587",
+ "checked_at_commit": "4836b33",
  "results": "site/leaderboard/results.json",
- "frozen": "benchmark/results/first-benchmark/leaderboard-v1.2.json",
- "passed": 15,
+ "frozen": "benchmark/results/first-benchmark/leaderboard-final.json",
+ "passed": 27,
  "failed": 0,
  "checks": [
   {
@@ -13,17 +13,32 @@
   {
    "check": "every arm used its freeze manifest's thresholds",
    "ok": true,
-   "detail": "83 frozen arms"
+   "detail": "90 frozen arms"
   },
   {
    "check": "freeze manifests are committed and unchanged",
    "ok": true,
-   "detail": "0bc22cbc93f8, 20acbdb040ff, 1cd7bab4ca81, 572c327a4bcb"
+   "detail": "0bc22cbc93f8, 20acbdb040ff, 1cd7bab4ca81, 572c327a4bcb, 2875cb18b2d9"
   },
   {
    "check": "extension manifests committed before the test rows they govern",
    "ok": true,
    "detail": "ext1 3c88be6 before 9186507; ext2 a08a3b3 before 9c3e8e8"
+  },
+  {
+   "check": "implementations-v1.3 committed before the first profanity call (tuning or test)",
+   "ok": true,
+   "detail": "bb064b1 at 2026-09-28T07:23:30+00:00; first call 2026-09-28T07:23:41Z"
+  },
+  {
+   "check": "extension-specific freeze validation passed for every arm of this leaderboard",
+   "ok": true,
+   "detail": "50 arms, 0 failed"
+  },
+  {
+   "check": "public version is v0.0.1 on the page, with no later public version label",
+   "ok": true,
+   "detail": "The public dataset is Gold Rails v0.0.1 on Hugging Face (revision 3e3ed7f3bbed, built from internal release v1.2). These results use internal release v1.3, which differs only in the profanity rows; it is a proposed revision of v0.0.1 and is not uploaded."
   },
   {
    "check": "overall matches the frozen overall block (score, interval, cost, categories, composition)",
@@ -46,14 +61,59 @@
    "detail": "29 of 29 corrected arms"
   },
   {
-   "check": "denied topics, profanity and overall are marked provisional",
+   "check": "owner label review is recorded for this release manifest, committed, and not called independent",
    "ok": true,
-   "detail": "denied_topics, overall, profanity"
+   "detail": "dataset/release/v1.3/owner-review-confirmation.json (Adesh Gairola, project owner, 2026-09-28)"
   },
   {
-   "check": "data scope shows the AI-labelled rows with label basis llm",
+   "check": "no suite is marked provisional once the review is recorded",
    "ok": true,
-   "detail": "denied topics 73, profanity 191"
+   "detail": "none"
+  },
+  {
+   "check": "current page text (corrections aside) has no provisional or awaiting-review statement",
+   "ok": true,
+   "detail": "94 strings"
+  },
+  {
+   "check": "the page renders review status from results.json, with no text-rewriting layer",
+   "ok": true,
+   "detail": "index.html"
+  },
+  {
+   "check": "label origins are kept beside the owner review (denied topics stays label basis llm)",
+   "ok": true,
+   "detail": "denied topics 73 rows"
+  },
+  {
+   "check": "profanity scope is the 160 Civil Comments rows with human rater labels, lexicon rows outside it",
+   "ok": true,
+   "detail": "civil_comments_obscene human benign 80, civil_comments_obscene human violations 80"
+  },
+  {
+   "check": "every verdict row has the evaluator's paired Jev-minus-Bedrock interval",
+   "ok": true,
+   "detail": "9 comparisons"
+  },
+  {
+   "check": "word-filter category interval is half the profanity interval, with both perfect on custom words",
+   "ok": true,
+   "detail": "+14.06 [10.77, 17.08]"
+  },
+  {
+   "check": "claim is scoped to configured detectors, with untested capabilities listed and no causal vocabulary claim",
+   "ok": true,
+   "detail": "10 untested capabilities"
+  },
+  {
+   "check": "self-hosted costs are labelled normalized estimates, with each pass's actual zone recorded apart from pricing",
+   "ok": true,
+   "detail": "35 entries; zones ['us-central1-a', 'us-east4-a', 'us-east4-c']"
+  },
+  {
+   "check": "word filters is described as a component average wherever the composed value is carried",
+   "ok": true,
+   "detail": "7 overall entries"
   },
   {
    "check": "bias matches bias.json and stays outside the overall",
@@ -63,12 +123,12 @@
   {
    "check": "every page correction's commit is in CORRECTIONS.md",
    "ok": true,
-   "detail": "8 corrections"
+   "detail": "12 corrections"
   },
   {
    "check": "every commit named in CORRECTIONS.md exists",
    "ok": true,
-   "detail": "23 commits"
+   "detail": "29 commits"
   },
   {
    "check": "post-hoc views on the page match sensitivity-2026-09-24.json, with rules committed first",
@@ -76,9 +136,9 @@
    "detail": "5 views"
   },
   {
-   "check": "page carries exactly the leaderboard's publication blockers, and says not for publication while any stand",
+   "check": "page carries every open evaluator blocker, owner-accepted ones only with a confirmed approval, and says not for publication while any stay open",
    "ok": true,
-   "detail": "evaluation contract v1.1-draft is draft, not signed off; analysis-approval-4.json: recorded on the approver's written instructions but not yet confirmed by the approver for these exact hashes"
+   "detail": "open: none; accepted: 2"
   }
  ]
 }

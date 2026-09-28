@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 from collections import Counter, defaultdict
@@ -53,7 +54,8 @@ WITHHOLD = {
 UPSTREAM = {
     "aegis2": ["aegis2"], "ai4privacy": ["ai4privacy"], "ailuminate_demo": ["ailuminate_demo"], "bbq": ["bbq"],
     "bias_pairs_reviewed": ["holistic_bias"], "civil_comments_identity": ["civil_comments"],
-    "civil_comments_profanity": ["civil_comments", "dsojevic_profanity_list"], "deepset_injections": ["deepset_injections"],
+    "civil_comments_profanity": ["civil_comments", "dsojevic_profanity_list"], "civil_comments_obscene": ["civil_comments"],
+    "deepset_injections": ["deepset_injections"],
     "discrim_eval": ["discrim_eval"], "gandalf": ["gandalf"], "jailbreakbench": ["jailbreakbench_behaviors"],
     "jbb_artifacts": ["jbb_artifacts", "jailbreakbench_behaviors"], "openai_moderation": ["openai_moderation"],
     "orbench": ["orbench"], "ragtruth": ["ragtruth"], "nemotron_pii": ["nemotron_pii"],
@@ -130,9 +132,15 @@ def main(argv=None) -> int:
     ap.add_argument("--public-repo", default="https://github.com/raxITlabs/goldrails",
                     help="public code repository the card and reconstruction steps point to")
     ap.add_argument("--public-ref", default="v0.0.1", help="public version: the tag in the code repository and on the dataset")
+    ap.add_argument("--previous", type=Path,
+                    help="publication record of the upload this package revises (same public version); adds CHANGELOG.md")
+    ap.add_argument("--code-ref", help="code revision the card and RECONSTRUCT.md name (default: --public-ref); "
+                                       "set it to the code export's commit before uploading a revision")
     ap.add_argument("--full", action="store_true",
                     help="complete text for every source, under the rights record dataset/release/rights-confirmation-*.json")
     a = ap.parse_args(argv)
+    code_ref = a.code_ref or a.public_ref
+    previous = json.loads(a.previous.read_text(encoding="utf-8")) if a.previous else None
     withhold = {} if a.full else WITHHOLD
     rel = ROOT / "release" / a.version
     man = json.loads((rel / "manifest.json").read_text(encoding="utf-8"))
@@ -140,6 +148,10 @@ def main(argv=None) -> int:
     corr = sorted(rel.glob("metadata-correction-*.json")) + sorted(rel.glob("known-issues.json"))
     out = ROOT / "publish" / (f"{a.version}-full" if a.full else a.version)
     per_version = rel / "rights.json"      # a release's own rights record wins over the older shared ones
+    review_path = rel / "owner-review-confirmation.json"   # a recorded human review of this release's labels
+    review = json.loads(review_path.read_text(encoding="utf-8")) if review_path.exists() else None
+    if review and review.get("release_manifest_sha256") != _sha(rel / "manifest.json"):
+        raise SystemExit(f"{review_path} names a different release manifest")
     rights = ([json.loads(per_version.read_text(encoding="utf-8"))] if per_version.exists() else
               [json.loads(p.read_text(encoding="utf-8")) for p in sorted((ROOT / "release").glob("rights-confirmation-*.json"))])
     if a.full and not rights:
@@ -192,12 +204,18 @@ def main(argv=None) -> int:
     (out / "NOTICE.md").write_text(notice_md(reg), encoding="utf-8")
     known = [json.loads(p.read_text()) for p in corr]
     (out / "KNOWN_ISSUES.md").write_text(known_md(a.version, known), encoding="utf-8")
-    (out / "RECONSTRUCT.md").write_text(reconstruct_md(a.version, a.public_repo, a.public_ref, held, rows_all), encoding="utf-8")
+    (out / "RECONSTRUCT.md").write_text(reconstruct_md(a.version, a.public_repo, code_ref, held, rows_all), encoding="utf-8")
+    if previous:
+        (out / "CHANGELOG.md").write_text(changelog_md(a.public_ref, a.version, man, rows_all, previous, review, code_ref),
+                                         encoding="utf-8")
+    if review:
+        (out / "LABEL_REVIEW.json").write_text(json.dumps(review, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     if a.full:
         (out / "RIGHTS.md").write_text(rights_md(rights), encoding="utf-8")
         sidecars(out, rows_all)
     (out / "README.md").write_text(card(a.version, man, files, rows_all, held, reg, known, a.public_repo, a.public_ref,
-                                        rights if a.full else None), encoding="utf-8")
+                                        rights if a.full else None, review=review, previous=previous, code_ref=code_ref),
+                                   encoding="utf-8")
 
     problems = validate(out, files, rows_all, reg, withhold)
     checks = verify_full(out, man, files, rows_all) if a.full else {}
@@ -205,7 +223,11 @@ def main(argv=None) -> int:
     if not a.no_load_check:
         problems += load_check(out, files)
     report = {"version": a.version, "full_text": a.full, "code_commit": commit, "files": files, "rows": len(rows_all),
-              "verification": checks, "pending": pending(rights) if a.full else [],
+              "public_version": a.public_ref, "revises": previous and previous.get("hub_commit"), "code_ref": code_ref,
+              "verification": checks,
+              "pending": (pending(rights) if a.full else []) + (
+                  [f"code_ref '{code_ref}' is not a commit: set --code-ref to the code export's commit before uploading"]
+                  if previous and not re.fullmatch(r"[0-9a-f]{40}", code_ref) else []),
               "withheld": {f"{s}/{c}/{sp}": n for (s, c, sp), n in sorted(held.items())}, "problems": problems}
     (out / "staging-report.json").write_text(json.dumps(report, indent=1) + "\n", encoding="utf-8")
     for k, v in checks.items():
@@ -375,6 +397,56 @@ def known_md(version: str, known: list) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _today() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%-d %B %Y")
+
+
+def changelog_md(ref: str, version: str, man: dict, rows: list, previous: dict, review: dict | None, code_ref: str) -> str:
+    """What this revision changes against the upload it revises, by canonical row hash, with both exact revisions."""
+    from .records import canonical, read_jsonl
+    prev_rel = ROOT / "release" / previous["release"]
+    before = {}
+    for p in sorted((prev_rel / "build").glob("*.jsonl")):
+        for rec in read_jsonl(p):
+            before[rec.id] = (rec.feature, rec.subtask, rec.provenance.source,
+                              hashlib.sha256(canonical(rec).encode()).hexdigest())
+    after = {r["id"]: (r["feature"], r["subtask"], r["provenance"]["source"], r["canonical_row_hash"]) for r in rows}
+    diff = Counter()
+    for k in set(before) | set(after):
+        b, x = before.get(k), after.get(k)
+        if b is None or x is None or b[3] != x[3]:
+            f, st, src, _ = x or b
+            diff[(f, st, src, "added" if b is None else "removed" if x is None else "changed")] += 1
+    same = sum(1 for k in set(before) & set(after) if before[k][3] == after[k][3])
+    prev_man = json.loads((prev_rel / "manifest.json").read_text(encoding="utf-8"))
+    lines = ["# Changelog", "", f"Public version {ref}. Internal release numbers identify each revision's rows; earlier "
+             "results stay traceable through the Hub revision they used.", "",
+             f"## {ref}, revised {_today()}", "",
+             f"- Built from internal release {version}: release sha `{man['release_sha256']}`, manifest sha256 "
+             f"`{_sha(prev_rel.parent / version / 'manifest.json')}`, {man['counts']['total']} rows.",
+             "- Hub revision: the commit this upload creates, recorded in the project's publication record after upload "
+             "(a revision cannot name its own commit).",
+             f"- Code: {previous.get('code_repository', {}).get('url', '')} at `{code_ref}`.",
+             f"- Rows compared with the previous revision by canonical row hash: {same} identical; changes below.", "",
+             "| Feature | Subtask | Source | Change | Rows |", "|---|---|---|---|---|"]
+    lines += [f"| {f} | {st} | {src} | {c} | {n} |" for (f, st, src, c), n in sorted(diff.items())]
+    lines += [""]
+    if review:
+        lines += [f"- Labels: the {review['role']} recorded review of all current labels ({review['recorded_at'][:10]}; "
+                  "LABEL_REVIEW.json). No label changed; rows keep their original `label_basis` and `review_status`. "
+                  "Owner review, not independent two-reviewer adjudication."]
+    lines += ["- Known issues and metadata corrections for this revision: KNOWN_ISSUES.md.", "",
+              f"## {ref}, first upload, {previous.get('uploaded', '')}", "",
+              f"- Hub revision `{previous['hub_commit']}`, tag `{previous.get('hub_tag') or ref}`.",
+              f"- Built from internal release {previous['release']}: release sha `{prev_man['release_sha256']}`, "
+              f"{prev_man['counts']['total']} rows.",
+              f"- Code: {previous.get('code_repository', {}).get('url', '')} at tag "
+              f"`{previous.get('code_repository', {}).get('tag', '')}` (commit "
+              f"`{previous.get('code_repository', {}).get('commit', '')}`).", ""]
+    return "\n".join(lines) + "\n"
+
+
 def reconstruct_md(version: str, repo: str, ref: str, held: Counter, rows: list) -> str:
     ids_only = Counter(r["provenance"]["source"] for r in rows if r.get("redistribution") == "ids_only")
     from .rehydrate import REBUILDABLE
@@ -413,7 +485,8 @@ def reconstruct_md(version: str, repo: str, ref: str, held: Counter, rows: list)
 
 
 def card(version: str, man: dict, files: list, rows: list, held: Counter, reg: list, known: list, repo: str, ref: str,
-         rights: list | None = None) -> str:
+         rights: list | None = None, review: dict | None = None, previous: dict | None = None,
+         code_ref: str | None = None) -> str:
     by_cfg = defaultdict(dict)
     for f in files:
         by_cfg[f["config"]][f["split"]] = f
@@ -424,13 +497,26 @@ def card(version: str, man: dict, files: list, rows: list, held: Counter, reg: l
         for split, f in sorted(by_cfg[config].items()):
             yaml += [f"      - split: {split}", f"        path: {f['path']}"]
     prov = Counter((r["provenance"]["label_basis"], r["review_status"]) for r in rows)
+    policy = man["label_policy"]   # a later metadata correction of the frozen manifest's wording wins
+    for k in known:
+        for c in k.get("corrections", []):
+            if c["field"] == "label_policy":
+                policy = c["now"]
     mode = Counter(r.get("redistribution") for r in rows)
     lines = ["---", "pretty_name: Gold Rails", "license: other", "license_name: mixed-per-source",
              "license_link: https://huggingface.co/datasets/raxITLabs/goldrails/blob/main/SOURCES.md", "language:", "  - en", "task_categories:", "  - text-classification",
              "tags:", "  - guardrails", "  - content-moderation", "  - prompt-injection", "  - pii-detection",
              "  - hallucination-detection", "  - fairness", *yaml, "---", "",
              f"# Gold Rails {ref if rights else version}", "",
-             (f"**First public release, {ref}. Provisional research release, complete text.** Code: {repo} at tag "
+             (f"**{ref}, revised {_today()}. Research release, complete text.** This revision is built from internal "
+              f"release {version}. The first upload of {ref}, built from internal release {previous['release']}, stays at "
+              f"Hub revision `{previous['hub_commit']}` (tag `{previous.get('hub_tag') or ref}`), so results computed on it "
+              f"remain traceable; CHANGELOG.md lists every change. Code: {repo} at `{code_ref}`. Every row of release "
+              f"{version} (release sha `{man['release_sha256'][:12]}`, {man['counts']['total']} rows) ships with its text, "
+              "context, labels and span annotations. RIGHTS.md records the basis for publishing the sources that "
+              "earlier shipped without text." if rights and previous else
+              f"**{'First public release, ' + ref if ref == 'v0.0.1' else 'Release ' + ref}. "
+              f"{'Research release' if review else 'Provisional research release'}, complete text.** Code: {repo} at tag "
               f"`{ref}`. Built from internal release {version}: every row of release "
               f"{version} (release sha `{man['release_sha256'][:12]}`, {man['counts']['total']} rows), with its text, "
               "context, labels and span annotations. RIGHTS.md records the basis for publishing the sources that "
@@ -443,7 +529,12 @@ def card(version: str, man: dict, files: list, rows: list, held: Counter, reg: l
              "Each row is one message to judge, with a reference label and its provenance.", "",
              "## Intended use", "", INTENDED_USE, "",
              "## Read this first", "",
-             f"- **Label provenance is mixed.** {man['label_policy']}",
+             f"- **Label provenance is mixed.** {policy}",
+             *([f"- **Labels reviewed by the project owner.** On {review['recorded_at'][:10]} the {review['role']} "
+                f"recorded review of {review['scope'][0].lower() + review['scope'][1:]}, with no label changed "
+                "(LABEL_REVIEW.json). This is owner review, not independent two-reviewer adjudication. Each row keeps "
+                "its original `label_basis` and `review_status`, so AI-drafted labels still read `llm` and "
+                "`ai_reviewed`."] if review else []),
              "- `review_status: source_label` means the source's own label, not human annotation by us. "
              "`label_basis` says how the source made it.",
              "- Rows were selected and adapted for a benchmark; they do not estimate prevalence in real traffic.",
@@ -466,10 +557,16 @@ def card(version: str, man: dict, files: list, rows: list, held: Counter, reg: l
               "- **Prompt attacks.** JailbreakBench artifacts are attacks by construction. Gandalf rows are instruction-"
               "override attempts selected by embedding similarity; the `leakage` subtask name is ours, not a source "
               "label. deepset rows carry the source's binary label.",
-              "- **Denied topics.** `yes` when the message falls inside the written topic definition. Single-AI reference "
-              "labels in this release.",
-              "- **Word filters.** Custom words: deterministic whole-word match. Profanity: presence of profanity under "
-              "the written definition, single-AI reference labels; masked spellings are a diagnostic subtask.",
+              "- **Denied topics.** `yes` when the message falls inside the written topic definition. "
+              + ("One AI reviewer drafted the labels and the project owner reviewed them." if review
+                 else "Single-AI reference labels in this release."),
+              "- **Word filters.** Custom words: deterministic whole-word match. Profanity: "
+              + ("Civil Comments' crowd-rater obscene share, `yes` at 0.5 or more and `no` at 0, with shares in between "
+                 "excluded; these are derived binary labels, not unanimous judgments. Lexicon-selected masked spellings "
+                 "are a diagnostic subtask outside the score."
+                 if any(r["provenance"]["source"] == "civil_comments_obscene" for r in rows) else
+                 "presence of profanity under the written definition, single-AI reference labels; masked spellings are a "
+                 "diagnostic subtask."),
               "- **Sensitive information.** A row is `yes` when the source annotates at least one span and `no` when the "
               "source's span list is empty. An empty list is not proof of absence; see KNOWN_ISSUES.md.",
               "- **Grounding.** `yes` when RAGTruth annotators marked a reply span as conflicting with or not supported by "
