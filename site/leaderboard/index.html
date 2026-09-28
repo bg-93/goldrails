@@ -1,0 +1,1008 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gold Rails results</title>
+<meta name="description" content="Gold Rails: decision-model guardrails measured against Amazon Bedrock Guardrails on quality, cost and latency.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300..800;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #f5f6f4;
+  --raise: #ffffff;
+  --ink: #14161a;
+  --ink-2: #474c54;
+  --ink-3: #676d76;
+  --rule: #d8dbdf;
+  --grid: #e7e9ec;
+  --dm: #2140c9;
+  --dm-soft: rgba(33, 64, 201, 0.34);
+  --dm-faint: rgba(33, 64, 201, 0.14);
+  --br: #a0560a;
+  --br-soft: rgba(160, 86, 10, 0.34);
+  --base: #7b8089;
+  --focus: #2140c9;
+  --shadow: 0 1px 2px rgba(20, 22, 26, 0.06), 0 12px 32px -8px rgba(20, 22, 26, 0.18);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #101215;
+    --raise: #181b1f;
+    --ink: #eceef1;
+    --ink-2: #b4bac2;
+    --ink-3: #8e959e;
+    --rule: #2b2f35;
+    --grid: #1f2226;
+    --dm: #86a0ff;
+    --dm-soft: rgba(134, 160, 255, 0.4);
+    --dm-faint: rgba(134, 160, 255, 0.16);
+    --br: #f0a552;
+    --br-soft: rgba(240, 165, 82, 0.4);
+    --base: #8f959e;
+    --focus: #86a0ff;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -8px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px/1.55 "Public Sans", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: var(--dm-faint); color: var(--ink); }
+a { color: var(--dm); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+button { font: inherit; color: inherit; }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 32px; }
+@media (max-width: 640px) { .wrap { padding: 0 16px; } }
+
+/* ---------- opening ---------- */
+header.open { padding: 56px 0 8px; }
+.masthead { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; font-size: 14px; color: var(--ink-2); margin-bottom: 56px; }
+.masthead strong { color: var(--ink); font-weight: 650; letter-spacing: -0.01em; }
+@media (max-width: 640px) { .masthead { flex-direction: column; gap: 2px; margin-bottom: 40px; } }
+h1 {
+  font-size: clamp(2rem, 1.2rem + 3.2vw, 3.5rem);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  margin: 0 0 24px;
+  max-width: 17ch;
+  text-wrap: balance;
+}
+h1 .dm { color: var(--dm); }
+h1 .br { color: var(--br); }
+.answer { font-size: clamp(1.06rem, 1rem + 0.35vw, 1.3rem); line-height: 1.5; color: var(--ink); max-width: 62ch; margin: 0 0 20px; text-wrap: pretty; }
+.status { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 14px; color: var(--ink-2); margin: 0; padding: 0; list-style: none; }
+.status li::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); margin-right: 8px; vertical-align: 2px; }
+.status li.warn::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink); }
+
+/* ---------- verdict ledger ---------- */
+section { padding: 64px 0 0; }
+h2 { font-size: 1.5rem; line-height: 1.2; letter-spacing: -0.02em; font-weight: 680; margin: 0 0 8px; text-wrap: balance; }
+.sub { color: var(--ink-2); margin: 0 0 28px; max-width: 70ch; }
+.ledger { border-top: 1px solid var(--ink); }
+.lrow {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr) 148px 200px;
+  gap: 0 28px;
+  align-items: center;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+}
+.lrow:hover .lname, .lrow:focus-visible .lname { color: var(--dm); }
+.lrow-overall { border-top: 1px solid var(--ink); border-bottom: 0; }
+.lrow-overall .lname { font-size: 17px; }
+.lhead { cursor: default; padding: 10px 0; font-size: 13px; color: var(--ink-3); border-bottom: 1px solid var(--rule); }
+.lname { font-weight: 600; letter-spacing: -0.01em; transition: color 160ms ease-out; }
+.lname small { display: block; font-weight: 400; font-size: 13px; color: var(--ink-3); letter-spacing: 0; }
+.lscale { position: relative; height: 34px; }
+.lscale svg { display: block; width: 100%; height: 34px; overflow: visible; }
+.ltick { display: none; position: absolute; top: 48px; transform: translateX(-50%); font-size: 11px; color: var(--ink-3); }
+.lverdict { font-weight: 620; font-size: 15px; }
+.lverdict small { display: block; font-weight: 400; font-size: 13px; color: var(--ink-3); }
+.v-dm { color: var(--dm); }
+.v-br { color: var(--br); }
+.v-level { color: var(--ink); }
+.v-wait { color: var(--ink-3); font-weight: 500; }
+.lcost { font-size: 14px; color: var(--ink-2); }
+.lcost b { color: var(--ink); font-weight: 600; }
+.lcost small { display: block; font-size: 13px; color: var(--ink-3); }
+.key { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 18px 0 0; font-size: 13px; color: var(--ink-2); }
+.key span { display: inline-flex; align-items: center; gap: 8px; }
+.key svg { width: 26px; height: 12px; overflow: visible; }
+@media (max-width: 900px) {
+  .lrow { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; }
+  .lhead { display: none; }
+  .lscale { grid-column: 1 / -1; grid-row: 2; height: 62px; margin-top: 8px; }
+  .ltick { display: block; }
+  .ltick:first-of-type { transform: none; }
+  .ltick:last-of-type { transform: translateX(-100%); }
+  .lname { grid-row: 1; }
+  .lverdict { grid-row: 1; text-align: right; }
+  .lcost { grid-column: 1 / -1; grid-row: 3; }
+}
+
+/* ---------- small multiples ---------- */
+.bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 20px; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 999px; padding: 3px; background: var(--raise); }
+.seg button { border: 0; background: none; padding: 6px 14px; border-radius: 999px; font-size: 14px; color: var(--ink-2); cursor: pointer; transition: background-color 180ms ease-out, color 180ms ease-out; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.seg button:not([aria-pressed="true"]):hover { color: var(--ink); }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--ink); }
+.panel { padding: 22px 22px 18px 0; border-bottom: 1px solid var(--rule); min-width: 0; transition: background-color 220ms ease-out; }
+.panel + .panel { padding-left: 22px; }
+.grid .panel:nth-child(3n+1) { padding-left: 0; }
+.grid .panel:not(:nth-child(3n+1)) { border-left: 1px solid var(--rule); }
+.panel.lit { background: var(--dm-faint); }
+.panel h3 { font-size: 16px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 2px; }
+.panel .desc { font-size: 13px; color: var(--ink-3); margin: 0 0 10px; min-height: 2.9em; }
+.panel svg.plot { display: block; width: 100%; height: auto; overflow: visible; }
+.panel .off { font-size: 12.5px; color: var(--ink-3); margin: 8px 0 0; }
+.grid-lead { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+.grid + .grid { border-top: 0; }
+.aside .notes { margin: 6px 0 0; padding: 0; list-style: none; font-size: 14px; color: var(--ink-2); max-width: 64ch; }
+.aside .notes li { padding: 7px 0; border-bottom: 1px solid var(--grid); }
+.aside .notes li:last-child { border-bottom: 0; }
+.aside .notes strong { color: var(--ink); font-weight: 600; }
+.panel-wide { grid-column: 1 / -1; padding-left: 0 !important; border-left: 0 !important; }
+.wide-head { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px 48px; align-items: end; margin-bottom: 12px; }
+.wide-head .desc { min-height: 0; max-width: 72ch; margin: 0; }
+.wide-head .off { margin: 0; }
+@media (max-width: 800px) { .wide-head { grid-template-columns: 1fr; } }
+.biastab { width: 100%; border-collapse: collapse; font-size: 14px; }
+.biastab th { text-align: left; font-weight: 500; font-size: 13px; color: var(--ink-3); padding: 8px 12px 8px 0; border-bottom: 1px solid var(--rule); }
+.biastab td { padding: 7px 16px 7px 0; border-bottom: 1px solid var(--grid); }
+.biastab td.name { font-weight: 550; white-space: nowrap; width: 180px; }
+.biastab th:nth-child(2), .biastab th:nth-child(3) { width: 40%; }
+.biastab td.na { color: var(--ink-3); font-size: 13px; }
+.bb { all: unset; display: flex; align-items: center; gap: 10px; width: 100%; cursor: pointer; border-radius: 4px; }
+.bb:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.bb-track { flex: 1; height: 6px; background: var(--grid); border-radius: 3px; overflow: hidden; }
+.bb-fill { display: block; height: 100%; border-radius: 3px; }
+.bb:hover .bb-fill { filter: brightness(1.12); }
+.bb-v { width: 40px; text-align: right; font-weight: 600; }
+.bb-n { width: 48px; font-size: 12px; color: var(--ink-3); }
+.biastab td.b2 { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.biastab td.b2 .bb-n { display: block; width: auto; }
+.biastab th.b2h { min-width: 150px; }
+.biaswrap { overflow-x: auto; }
+@media (max-width: 640px) {
+  .biastab td.name { width: auto; white-space: normal; }
+  .biastab thead th:not(:first-child) { font-size: 12px; }
+  .bb { gap: 6px; flex-wrap: wrap; } .bb-track { flex-basis: 100%; } .bb-v { width: auto; text-align: left; } .bb-n { width: auto; }
+}
+.lbl-fade { animation: lblin 360ms ease-out both; }
+@keyframes lblin { from { opacity: 0; } }
+@media (max-width: 1000px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid .panel { padding-left: 22px !important; border-left: 1px solid var(--rule) !important; }
+  .grid .panel:nth-child(2n+1) { padding-left: 0 !important; border-left: 0 !important; }
+}
+@media (max-width: 1000px) { .grid-lead { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .grid, .grid-lead { grid-template-columns: 1fr; }
+  .grid .panel { padding: 22px 0 18px !important; border-left: 0 !important; }
+}
+svg text { font-family: "Public Sans", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.tick { font-size: 11px; fill: var(--ink-3); }
+.axis-label { font-size: 11px; fill: var(--ink-3); }
+.gl { stroke: var(--grid); stroke-width: 1; }
+.frame { stroke: var(--rule); stroke-width: 1; fill: none; }
+.pt { cursor: pointer; transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease-out; }
+.pt:hover .mark, .pt:focus-visible .mark { stroke-width: 2.5; }
+.pt:focus { outline: none; }
+.pt:focus-visible .halo { stroke: var(--focus); stroke-width: 2; }
+.halo { fill: transparent; stroke: none; }
+.lbl { font-size: 11.5px; fill: var(--ink-2); pointer-events: none; }
+.lbl.strong { font-weight: 650; font-size: 12px; }
+.lbl.dm { fill: var(--dm); }
+.lbl.br { fill: var(--br); }
+.empty-note { font-size: 12.5px; fill: var(--ink-3); }
+
+/* ---------- detail card ---------- */
+.detail {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(78vh, 720px);
+  overflow: auto;
+  background: var(--raise);
+  color: var(--ink);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 22px 22px 18px;
+  z-index: 10;
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+  transition: opacity 200ms ease-out, transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.detail.on { opacity: 1; transform: none; pointer-events: auto; }
+.detail h4 { margin: 0; font-size: 18px; letter-spacing: -0.015em; padding-right: 36px; }
+.detail .where { font-size: 13px; color: var(--ink-3); margin: 2px 0 14px; }
+.detail .big { font-size: 34px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+.detail .big small { font-size: 14px; font-weight: 400; color: var(--ink-2); letter-spacing: 0; margin-left: 8px; }
+.detail dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 16px 0 0; font-size: 14px; }
+.detail dt { color: var(--ink-3); }
+.detail dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.detail .note { font-size: 13px; color: var(--ink-2); margin: 14px 0 0; }
+.detail .close { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; cursor: pointer; display: grid; place-items: center; color: var(--ink-2); }
+.detail .close:hover { background: var(--grid); color: var(--ink); }
+.detail table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+.detail th, .detail td { text-align: right; padding: 4px 0 4px 10px; border-bottom: 1px solid var(--grid); }
+.detail th:first-child, .detail td:first-child { text-align: left; padding-left: 0; }
+.detail th { font-weight: 500; color: var(--ink-3); }
+@media (max-width: 640px) { .detail { right: 16px; left: 16px; bottom: 16px; width: auto; } }
+
+/* ---------- table ---------- */
+.tools { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--rule); background: var(--raise); padding: 8px 14px; border-radius: 999px; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: border-color 160ms ease-out; }
+.btn:hover { border-color: var(--ink-3); }
+.btn svg { width: 15px; height: 15px; }
+.tablewrap { overflow-x: auto; border-top: 1px solid var(--ink); }
+table.all { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 860px; }
+table.all th, table.all td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+table.all th:first-child, table.all td:first-child { text-align: left; padding-left: 0; }
+table.all thead th { font-weight: 500; font-size: 13px; color: var(--ink-3); position: sticky; top: 0; background: var(--paper); }
+table.all tbody tr.grp td { padding-top: 26px; font-weight: 650; border-bottom: 1px solid var(--ink-3); text-align: left; }
+table.all tbody tr.row { cursor: pointer; }
+table.all tbody tr.row:hover td { background: var(--dm-faint); }
+table.all td.name { font-weight: 550; }
+table.scope { min-width: 1000px; }
+table.scope td { vertical-align: top; }
+table.scope td.wrap { white-space: normal; text-align: left; font-size: 13.5px; color: var(--ink-2); line-height: 1.45; }
+table.scope th:nth-child(n+4) { text-align: left; }
+table.scope td:nth-child(4) { width: 24%; } table.scope td:nth-child(5) { width: 24%; } table.scope td:nth-child(6) { width: 28%; }
+table.all td:first-child, table.all th:first-child { position: sticky; left: 0; background: var(--paper); z-index: 1; }
+table.all tbody tr.grp td { position: static; }
+@media (max-width: 900px) {
+  .tablewrap { -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+  table.all td:first-child, table.all th:first-child { box-shadow: 1px 0 0 var(--rule); padding-right: 12px; }
+}
+table.all td.na { color: var(--ink-3); }
+.sw { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 10px; vertical-align: 1px; }
+
+/* ---------- method ---------- */
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 56px; }
+.cols h3 { font-size: 15px; font-weight: 650; margin: 22px 0 6px; }
+.cols p, .cols li { color: var(--ink-2); font-size: 15px; max-width: 62ch; }
+.cols ul { padding-left: 18px; margin: 0; }
+.cols li { margin: 0 0 6px; }
+@media (max-width: 800px) { .cols { grid-template-columns: 1fr; } }
+footer { margin: 80px 0 0; padding: 24px 0 48px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--ink-3); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--grid); padding: 1px 5px; border-radius: 4px; }
+.errors { border: 1px solid var(--br); border-radius: 12px; padding: 16px 20px; color: var(--ink); background: var(--raise); }
+.errors ul { margin: 8px 0 0; padding-left: 18px; }
+.skeleton { height: 240px; border-radius: 12px; background: linear-gradient(90deg, var(--grid), var(--raise), var(--grid)); background-size: 200% 100%; animation: sheen 1.4s ease-in-out infinite; }
+@keyframes sheen { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0ms !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<!--
+THESIS: One question, answered per capability: do decision models hold up against Amazon Bedrock Guardrails? A verdict ledger answers it; seven same-scale quality-against-cost charts carry the evidence. Refuses the category default of a tabbed single chart under a ranked leaderboard.
+OWN-WORLD: A research datasheet. Cool paper white, near-black ink rules, Public Sans with tabular figures throughout. Two committed hues only: cobalt for decision models, ochre for Bedrock; baselines in grey. Hairline-ruled small multiples, no cards.
+STORY: The reader learns where Jev is ahead, level or behind Bedrock, at what cost, how sure we are, and what is still missing; then checks any point down to its configuration.
+FIRST VIEWPORT: Masthead line; the question as a large headline with the two hues; a two-sentence computed answer; the interim status line; the verdict ledger starting below the fold line on laptops.
+FORM: Datasheet small multiples, first on my own list of seven. Seed: none. concept-seed.mjs --scope direction --mode read (and --grain view) exited 0 with empty stdout on 2026-09-23; no key or assignment was printed, so the direction was chosen without the roll and this is disclosed to the user.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+-->
+<div class="wrap">
+  <header class="open">
+    <div class="masthead"><strong>raxIT Labs · Gold Rails</strong><span id="meta">Loading results</span></div>
+    <h1>Can <span class="dm">decision models</span> stand in for <span class="br">Amazon Bedrock Guardrails</span>?</h1>
+    <p class="answer" id="answer"></p>
+    <ul class="status" id="status"></ul>
+  </header>
+
+  <main id="main">
+    <div class="skeleton" aria-hidden="true" style="margin-top:48px"></div>
+  </main>
+
+  <footer>
+    <span id="foot-left">Gold Rails is an open benchmark. Every number traces to a freeze manifest and a raw ledger.</span>
+    <span id="foot-right"></span>
+  </footer>
+</div>
+
+<aside class="detail" id="detail" role="dialog" aria-modal="false" aria-labelledby="detail-title" hidden>
+  <button class="close" id="detail-close" aria-label="Close details">
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+  </button>
+  <div id="detail-body"></div>
+</aside>
+
+<script src="leaderboard.js"></script>
+<script>
+"use strict";
+const G = window.GoldRails;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const isNum = G.isNum;
+const SUITES = G.CORE_SUITES;
+// Display rows: word filters shown as its two subtasks, custom words and profanity (contract v1.1).
+const ROWS = SUITES.flatMap((s) => (s === "word_filters" ? ["word_filters", "profanity"] : [s]));
+/* The six category charts. Word filters is one category composed of two measured checks (custom words and profanity,
+   equal weight); its score, interval and cost come from the frozen overall block, never recomputed here. */
+const WF = "word_filters_category";
+const CHARTS = SUITES.map((s) => (s === "word_filters" ? WF : s));
+const COST_ONLY = new Set(["overall", WF]);
+const LABEL = { word_filters: "Word filters: custom words", profanity: "Word filters: profanity", [WF]: "Word filters" };
+const baseLabel = (s) => LABEL[s] || (VIEW[s] ? VIEW[s].label : s);
+const isProvisional = (s) => !!(state.data && state.data.provisional && (state.data.provisional.suites || []).includes(s === WF ? "profanity" : s));
+const label = (s) => baseLabel(s) + (isProvisional(s) ? " (provisional)" : "");
+const VIEW = Object.fromEntries(G.VIEWS.map((v) => [v.id, v]));
+const DESC = {
+  content: "Harmful requests and unsafe replies",
+  prompt_attacks: "Jailbreaks and injections, with benign instructions",
+  denied_topics: "Messages inside a supplied topic definition",
+  word_filters: "Configured terms under the declared matching rule",
+  sensitive_information: "Personal data present in a message (detection)",
+  grounding: "Claims not supported by the supplied evidence",
+  bias: "Separate evaluation, outside the six-suite score",
+  overall: "Equal-weight mean of all six categories",
+  profanity: "Swear words and vulgar terms, against the written definition",
+  [WF]: "Custom words and profanity, equal weight; two checks per message",
+};
+const DECISION = new Set(["hosted_api", "self_hosted"]);
+const state = { data: null, axis: "cost", openKey: null };
+
+/* ---------- load ---------- */
+function resultsPath() {
+  const p = new URLSearchParams(location.search).get("results");
+  if (p && /^[A-Za-z0-9_\-./]+\.json$/.test(p) && !p.startsWith("/") && !p.includes("//")) return p;
+  return "results.json";
+}
+async function load() {
+  try {
+    const res = await fetch(resultsPath(), { cache: "no-store" });
+    if (!res.ok) throw new Error(`${resultsPath()} returned ${res.status}`);
+    const data = G.normalise(await res.json());
+    const v = G.validate(data);
+    if (v.errors.length) return fail("The results file breaks the page rules, so nothing is drawn.", v.errors);
+    state.data = data;
+    render();
+  } catch (e) {
+    fail("The results could not be loaded.", [String(e.message || e) + ". Serve this folder over HTTP, for example: uv run python -m http.server --directory site/leaderboard"]);
+  }
+}
+function fail(title, list) {
+  $("meta").textContent = "No results";
+  $("main").innerHTML = `<div class="errors" role="alert" style="margin-top:40px"><strong>${esc(title)}</strong><ul>${list.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
+}
+
+/* ---------- data helpers ---------- */
+const implById = (id) => state.data.implementations.find((i) => i.id === id);
+const entry = (impl, suite, track = null) => suite === WF ? wfEntry(impl)
+  : state.data.entries.find((e) => e.implementation === impl && e.suite === suite && (suite !== "bias" || e.track === track));
+function wfEntry(impl) {
+  const o = suiteOf(impl, "word_filters");
+  if (!o || !isNum(o.task_score)) return { implementation: impl, suite: WF, track: null, status: "not_evaluated",
+    status_note: "No category score: it needs both word-filter checks (custom words and profanity)." };
+  const parts = [entry(impl, "word_filters"), entry(impl, "profanity")];
+  const free = o.usd_per_1000 === 0 && parts.every((p) => p && p.cost && p.cost.zero_tariff);
+  return { implementation: impl, suite: WF, track: null, status: "evaluated",
+    status_note: "Equal-weight mean of custom words and profanity, from the frozen overall. Cost is the sum of the two checks, each measured on its own rows; not an end-to-end measurement. Profanity uses single-AI reference labels (provisional).",
+    quality: { score: o.task_score, interval: o.ci && isNum(o.ci.low) ? { low: o.ci.low, high: o.ci.high, level: 0.95 } : null },
+    cost: { usd_per_1000: o.usd_per_1000, basis: "sum of the two checks", ...(free ? { zero_tariff: true } : {}) },
+    latency: null };
+}
+const rowsOf = (s) => s === WF
+  ? state.data.implementations.map((im) => ({ impl: im, entry: wfEntry(im.id) }))
+  : G.rowsFor(state.data, s, null);
+const short = (impl) => impl.label.replace(/\s*\(.*\)\s*$/, "").replace("Amazon Bedrock Guardrails", "Bedrock");
+const iv = (e) => (e && e.quality && e.quality.interval) || null;
+const scored = (e) => e && e.status === "evaluated" && e.quality && isNum(e.quality.score);
+const hue = (impl) => impl.id === "bedrock" || impl.type === "managed_service" ? "br" : DECISION.has(impl.type) ? "dm" : "base";
+const fmtUSD = (v) => (isNum(v) ? "$" + (v >= 1 ? v.toFixed(2) : v.toPrecision(3)) : "not measured");
+const fmtScore = (v) => (isNum(v) ? (Math.round(v * 10) / 10).toFixed(1) : "n/a");
+
+function compare(suite) {
+  const j = entry("jev", suite), b = entry("bedrock", suite);
+  if (!scored(j) || !scored(b)) return { kind: "wait", j, b, overall: suite === "overall" };
+  const ji = iv(j), bi = iv(b);
+  const js = j.quality.score, bs = b.quality.score;
+  let kind = "level";
+  if (ji && bi) {
+    if (ji.low > bi.high) kind = "dm";
+    else if (bi.low > ji.high) kind = "br";
+  }
+  const best = state.data.implementations
+    .filter((i) => DECISION.has(i.type))
+    .map((i) => ({ i, e: entry(i.id, suite) }))
+    .filter((x) => scored(x.e))
+    .sort((a, c) => c.e.quality.score - a.e.quality.score)[0];
+  return { kind, j, b, js, bs, best };
+}
+
+function answerText() {
+  const rows = ROWS.map((s) => ({ s, c: compare(s) }));
+  const done = rows.filter((r) => r.c.kind !== "wait");
+  const name = (r) => label(r.s).replace("Word filters: ", "").toLowerCase();
+  const list = (xs) => xs.length <= 1 ? xs.join("") : xs.slice(0, -1).join(", ") + " and " + xs[xs.length - 1];
+  const same = (r) => Math.abs(r.c.js - r.c.bs) < 1e-9;
+  const ahead = done.filter((r) => r.c.kind === "dm").map(name);
+  const behind = done.filter((r) => r.c.kind === "br").map(name);
+  const overlap = done.filter((r) => r.c.kind === "level" && !same(r)).map(name);
+  const equal = done.filter((r) => r.c.kind === "level" && same(r));
+  const parts = [];
+  if (ahead.length) parts.push(`Jev scores higher than Bedrock on ${list(ahead)}, with intervals that do not overlap.`);
+  if (behind.length) parts.push(`Bedrock scores higher on ${list(behind)}, with intervals that do not overlap.`);
+  if (overlap.length) parts.push(`On ${list(overlap)} the intervals overlap, so no clear difference is established.`);
+  for (const r of equal) parts.push(`On ${name(r)} both score ${fmtScore(r.c.js)} on this subset.`);
+  const caps = SUITES.filter((su) => ROWS.filter((r) => r === su || (su === "word_filters" && r === "profanity"))
+    .some((r) => compare(r).kind !== "wait")).length;
+  let s = `Jev 1.13.0 is the hosted decision model under test; Kev, Open-Jev and Laya are open decision models run on our own GPUs. ${caps} of 6 capabilities are scored so far. ` + parts.join(" ");
+  const cheaper = done.filter((r) => {
+    const jc = r.c.j.cost && r.c.j.cost.usd_per_1000, bc = r.c.b.cost && r.c.b.cost.usd_per_1000;
+    return isNum(jc) && isNum(bc) && bc > 0 && jc < bc;
+  }).length;
+  const charged = done.filter((r) => { const bc = r.c.b.cost && r.c.b.cost.usd_per_1000; return isNum(bc) && bc > 0; }).length;
+  if (charged) s += cheaper === charged ? ` At list prices, Jev costs less than Bedrock in every capability where Bedrock charges.` : ` At list prices, Jev costs less than Bedrock in ${cheaper} of the ${charged} capabilities where Bedrock charges.`;
+  return s;
+}
+
+/* ---------- opening ---------- */
+function renderOpening() {
+  const d = state.data, b = d.benchmark;
+  $("meta").textContent = `First benchmark · ${b.generated_at || ""}`;
+  $("answer").textContent = answerText();
+  const evaluated = SUITES.filter((s) => d.entries.some((e) => e.suite === s && e.status === "evaluated")).length;
+  const items = [
+    { t: `Contract ${b.evaluation_contract}`, warn: /draft/i.test(b.evaluation_contract || "") },
+    { t: d.placeholder ? "Placeholder values" : (d.blockers || []).length ? "Interim results, not for publication" : "Contract signed, analysis confirmed", warn: !!(d.placeholder || (d.blockers || []).length) },
+    ...(d.provisional ? [{ t: "Denied topics and profanity: single-AI reference labels", warn: true }] : []),
+    { t: `Test split, frozen thresholds` },
+  ];
+  $("status").innerHTML = items.map((x) => `<li class="${x.warn ? "warn" : ""}">${esc(x.t)}</li>`).join("");
+}
+
+/* ---------- verdict ledger ---------- */
+/* The composed word-filters suite score per implementation, from the overall's per-suite breakdown. */
+function suiteOf(impl, suite) {
+  const e = entry(impl, "overall");
+  return e && e.suites ? e.suites[suite] || null : null;
+}
+const LX = (v) => ((v - 40) / 60) * 100;     // quality 40..100 to percent
+function ledgerScale(suite, c) {
+  const others = state.data.implementations
+    .filter((i) => DECISION.has(i.type) && i.id !== "jev")
+    .map((i) => entry(i.id, suite)).filter(scored);
+  let svg = `<svg viewBox="0 0 100 34" preserveAspectRatio="none" aria-hidden="true">`;
+  for (const t of [50, 60, 70, 80, 90, 100]) svg += `<line x1="${LX(t)}" x2="${LX(t)}" y1="4" y2="30" class="gl" vector-effect="non-scaling-stroke"/>`;
+  svg += `<line x1="0" x2="100" y1="17" y2="17" stroke="var(--rule)" vector-effect="non-scaling-stroke"/>`;
+  for (const e of others) svg += `<line x1="${LX(e.quality.score)}" x2="${LX(e.quality.score)}" y1="11" y2="23" stroke="var(--dm-soft)" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+  const bar = (e, y, col) => {
+    const i = iv(e);
+    if (i) svg += `<line x1="${LX(i.low)}" x2="${LX(i.high)}" y1="${y}" y2="${y}" stroke="${col}" stroke-width="5" stroke-linecap="round" opacity="0.32" vector-effect="non-scaling-stroke"/>`;
+  };
+  if (c.kind !== "wait") {
+    bar(c.j, 12, "var(--dm)"); bar(c.b, 22, "var(--br)");
+  }
+  svg += `</svg>`;
+  svg += `<span class="ltick" style="left:0">40</span><span class="ltick" style="left:50%">70</span><span class="ltick" style="left:100%">100</span>`;
+  // dots drawn as HTML so they stay round under a stretched viewBox
+  let dots = "";
+  const dot = (e, col, y, above) => {
+    if (!scored(e)) return;
+    dots += `<span style="position:absolute;left:${LX(e.quality.score)}%;top:${y}px;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:${col};box-shadow:0 0 0 2px var(--paper)"></span>`;
+    const lx = LX(e.quality.score), shift = lx > 94 ? "-100%" : lx < 6 ? "0" : "-50%";
+    dots += `<span style="position:absolute;left:${lx}%;top:${above ? y - 21 : y + 6}px;transform:translateX(${shift});font-size:11.5px;line-height:14px;font-weight:650;color:${col};white-space:nowrap">${fmtScore(e.quality.score)}</span>`;
+  };
+  if (c.kind !== "wait") {
+    dot(c.j, "var(--dm)", 12, true);
+    dot(c.b, "var(--br)", 22, false);
+  } else {
+    dots += `<span style="position:absolute;left:0;top:7px;font-size:13px;color:var(--ink-3);background:var(--paper);padding-right:10px">${suite === "overall" ? "Ranked only when all six categories are scored." : "Not scored. Test rows await human review."}</span>`;
+  }
+  return svg + dots;
+}
+function verdictHTML(c, note) {
+  if (c.kind === "wait") return c.overall ? `<div class="lverdict v-wait">Not ranked yet<small>Never averaged over five</small></div>`
+    : `<div class="lverdict v-wait">Awaiting review<small>Not drawn as zero</small></div>`;
+  const gap = c.js - c.bs;
+  const identical = Math.abs(gap) < 1e-9;
+  const txt = { dm: "Jev ahead", br: "Bedrock ahead", level: identical ? `Both ${fmtScore(c.js)}` : "No clear difference" }[c.kind];
+  const sub = c.kind === "level" ? (identical ? "On this subset" : `Intervals overlap (${gap > 0 ? "+" : ""}${gap.toFixed(1)})`) : `${gap > 0 ? "+" : ""}${gap.toFixed(1)} points`;
+  return `<div class="lverdict v-${c.kind}">${txt}<small>${esc(sub)}</small>${note ? `<small>${esc(note)}</small>` : ""}</div>`;
+}
+function costHTML(c) {
+  if (c.kind === "wait") return `<div class="lcost"><small>No cost without a score</small></div>`;
+  const jc = c.j.cost && c.j.cost.usd_per_1000, bc = c.b.cost && c.b.cost.usd_per_1000;
+  const bz = c.b.cost && c.b.cost.zero_tariff && bc === 0;
+  let ratio = "";
+  if (isNum(jc) && isNum(bc) && bc > 0 && jc > 0) {
+    const r = bc / jc;
+    ratio = r >= 1 ? `Jev ${r.toFixed(1)}x cheaper` : `Bedrock ${(1 / r).toFixed(1)}x cheaper`;
+  } else if (bz) ratio = "Bedrock word filters are free";
+  return `<div class="lcost"><b>${fmtUSD(jc)}</b> <span aria-hidden="true">·</span> <b>${bz ? "$0" : fmtUSD(bc)}</b><small>${esc(ratio)}</small></div>`;
+}
+function renderLedger() {
+  const rows = [...ROWS, "overall"].map((s) => {
+    const c = compare(s);
+    const best = `<small>${esc(DESC[s])}</small>`;
+    let bestNote = c.best && c.best.i.id !== "jev" && c.kind !== "wait" ? `Top decision model: ${short(c.best.i)} ${fmtScore(c.best.e.quality.score)}` : "";
+    if (s === "profanity" && c.kind !== "wait") {
+      const oj = suiteOf("jev", "word_filters"), ob = suiteOf("bedrock", "word_filters");
+      if (oj && ob) bestNote = `Word filters, equal weight: ${fmtScore(oj.task_score)} vs ${fmtScore(ob.task_score)}`;
+    }
+    if (c.kind !== "wait" && c.j.sensitivity && c.b.sensitivity)
+      bestNote = `Without format-inferred SSN labels: ${fmtScore(c.j.sensitivity.score)} vs ${fmtScore(c.b.sensitivity.score)}`;
+    return `<div class="lrow${s === "overall" ? " lrow-overall" : ""}" tabindex="0" role="link" data-suite="${s}" aria-label="${esc(label(s))}: show chart">
+      <div class="lname">${esc(label(s))}${best}</div>
+      <div class="lscale">${ledgerScale(s, c)}</div>
+      ${verdictHTML(c, bestNote)}
+      ${costHTML(c)}
+    </div>`;
+  }).join("");
+  const keySvg = (col, soft) => `<svg viewBox="0 0 26 12" aria-hidden="true"><line x1="2" x2="24" y1="6" y2="6" stroke="${col}" stroke-width="5" stroke-linecap="round" opacity="0.32"/><circle cx="13" cy="6" r="5" fill="${col}"/></svg>`;
+  return `<section aria-labelledby="h-verdict">
+    <h2 id="h-verdict">Jev against Bedrock, capability by capability</h2>
+    <p class="sub">Task score from 40 to 100: the mean of catching violations and passing benign traffic, on held-out test rows with thresholds frozen beforehand. Bars are 95% intervals. A win needs intervals that do not overlap. Overlapping intervals mean no clear difference, not that the two are equal.</p>
+    <div class="ledger">
+      <div class="lrow lhead" aria-hidden="true"><span>Capability</span><span style="display:flex;justify-content:space-between"><span>40</span><span>70</span><span>100</span></span><span>Verdict</span><span>Cost per 1,000: Jev · Bedrock</span></div>
+      ${rows}
+    </div>
+    <div class="key">
+      <span>${keySvg("var(--dm)")}Jev 1.13.0</span>
+      <span>${keySvg("var(--br)")}Amazon Bedrock Guardrails</span>
+      <span><svg viewBox="0 0 26 12" aria-hidden="true"><line x1="13" x2="13" y1="0" y2="12" stroke="var(--dm-soft)" stroke-width="2"/></svg>Other decision models: Kev 0.8B, 4B, 9B, Open-Jev 2B, Laya</span>
+    </div>
+  </section>`;
+}
+
+/* ---------- small multiples ---------- */
+const W = 360, H = 250, M = { l: 34, r: 12, t: 10, b: 36 };
+const Y0 = 40, Y1 = 100;
+function xDomain(axis) {
+  const xs = [];
+  for (const s of ["overall", ...CHARTS]) {
+    const plan = G.plotPlan(state.data, rowsOf(s), axis);
+    plan.points.forEach((p) => xs.push(p.x));
+  }
+  if (!xs.length) return null;
+  return G.logTicks(Math.min(...xs) * 0.85, Math.max(...xs) * 1.15);
+}
+/* Greedy label placement: main labels first; each tries right, left, above, below and keeps the first spot
+   that clears the plot edge, every point mark and every placed label. */
+function placeLabels(labels, marks, box) {
+  const placed = [];
+  const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  const order = labels.slice().sort((a, b) => (b.main - a.main) || (a.y - b.y));
+  for (const l of order) {
+    const w = l.text.length * (l.main ? 7.0 : 6.3) + 2, h = 13;
+    const tries = [
+      { x: l.x + 9, y: l.y - h / 2, a: "start" }, { x: l.x - 9 - w, y: l.y - h / 2, a: "end" },
+      { x: l.x - w / 2, y: l.y - 11 - h, a: "middle" }, { x: l.x - w / 2, y: l.y + 11, a: "middle" },
+      { x: l.x + 9, y: l.y - h - 3, a: "start" }, { x: l.x + 9, y: l.y + 3, a: "start" },
+      { x: l.x - 9 - w, y: l.y - h - 3, a: "end" }, { x: l.x - 9 - w, y: l.y + 3, a: "end" },
+    ];
+    let pick = null;
+    for (const t of tries) {
+      const r = { x: t.x, y: t.y, w, h };
+      if (r.x < box.x0 || r.x + w > box.x1 || r.y < box.y0 || r.y + h > box.y1) continue;
+      const pad = { x: r.x - 2, y: r.y - 1, w: r.w + 4, h: r.h + 2 };
+      if (placed.some((p) => hit(pad, p))) continue;
+      if (marks.some((m) => m.key !== l.key && hit(pad, { x: m.x - 7, y: m.y - 7, w: 14, h: 14 }))) continue;
+      pick = { ...t, r }; break;
+    }
+    if (!pick && l.main) {   // Jev and Bedrock are always named: take the least-crowded spot above or below
+      const t = { x: l.x - w / 2, y: l.y - 11 - h, a: "middle" };
+      pick = { ...t, r: { x: t.x, y: t.y, w, h } };
+    }
+    if (!pick) { l.hidden = true; continue; }
+    placed.push(pick.r);
+    l.tx = pick.a === "start" ? pick.x : pick.a === "end" ? pick.x + w : pick.x + w / 2;
+    l.ty = pick.y + h - 2.5;
+    l.anchor = pick.a;
+  }
+}
+function panelSVG(suite, axis, dom) {
+  const gut = axis === "cost" ? 44 : 0;            // "$0" gutter for documented free policies
+  const pw = W - M.l - M.r - gut, ph = H - M.t - M.b;
+  const sx = (v) => v === 0 ? M.l + 16 : M.l + gut + ((Math.log10(v) - Math.log10(dom.domain[0])) / (Math.log10(dom.domain[1]) - Math.log10(dom.domain[0]))) * pw;
+  const sy = (v) => M.t + (1 - (v - Y0) / (Y1 - Y0)) * ph;
+  const plan = G.plotPlan(state.data, rowsOf(suite), axis);
+  let g = "";
+  for (const t of [40, 50, 60, 70, 80, 90, 100]) {
+    g += `<line class="gl" x1="${M.l}" x2="${W - M.r}" y1="${sy(t)}" y2="${sy(t)}"/>`;
+    g += `<text class="tick" x="${M.l - 8}" y="${sy(t) + 3.5}" text-anchor="end">${t}</text>`;
+  }
+  dom.ticks.forEach((t, k) => {
+    g += `<line class="gl" x1="${sx(t)}" x2="${sx(t)}" y1="${M.t}" y2="${H - M.b}"/>`;
+    const first = gut && k === 0;   // keep the first log label clear of the "Free" gutter label
+    g += `<text class="tick" x="${first ? sx(t) - 2 : sx(t)}" y="${H - M.b + 16}" text-anchor="${first ? "start" : "middle"}">${esc(G.fmtTick(t, axis))}</text>`;
+  });
+  g += `<line x1="${M.l}" x2="${W - M.r}" y1="${H - M.b}" y2="${H - M.b}" stroke="var(--ink-3)"/>`;
+  if (gut) {
+    g += `<line x1="${M.l + gut - 6}" x2="${M.l + gut - 6}" y1="${M.t}" y2="${H - M.b}" stroke="var(--rule)" stroke-dasharray="2 3"/>`;
+    g += `<text class="tick" x="${M.l + 4}" y="${H - M.b + 16}" text-anchor="start">Free</text>`;
+  }
+  g += `<text class="axis-label" x="${W - M.r}" y="${H - 4}" text-anchor="end">${axis === "cost" ? "Cost per 1,000 checks, log scale" : "p95 latency, one request at a time, log scale"} →</text>`;
+  if (axis !== "cost" && COST_ONLY.has(suite)) {
+    g += `<text class="empty-note" x="${M.l + pw / 2}" y="${M.t + ph / 2 - 6}" text-anchor="middle">Compared on cost only.</text>`;
+    g += `<text class="empty-note" x="${M.l + pw / 2}" y="${M.t + ph / 2 + 12}" text-anchor="middle">${suite === "overall" ? "No single call spans six categories." : "Two checks; each has its own latency."}</text>`;
+    return { svg: g, off: [] };
+  }
+  if (!plan.points.length) {
+    g += `<text class="empty-note" x="${M.l + gut + pw / 2}" y="${M.t + ph / 2 - 6}" text-anchor="middle">Not scored yet.</text>`;
+    g += `<text class="empty-note" x="${M.l + gut + pw / 2}" y="${M.t + ph / 2 + 12}" text-anchor="middle">${suite === "overall" ? "Ranked once all six categories are scored." : "Test rows await human review."}</text>`;
+    return { svg: g, off: [] };
+  }
+  const order = { base: 0, dm: 1, br: 2 };
+  if (gut) for (const x of plan.excluded) {
+    const e = x.entry;
+    if (e.status === "evaluated" && e.cost && e.cost.zero_tariff && e.cost.usd_per_1000 === 0 && scored(e))
+      plan.points.push({ impl: x.impl, entry: e, x: 0, y: e.quality.score, lo: iv(e) ? iv(e).low : null, hi: iv(e) ? iv(e).high : null });
+  }
+  plan.excluded = plan.excluded.filter((x) => !(gut && x.entry.cost && x.entry.cost.zero_tariff && x.entry.cost.usd_per_1000 === 0));
+  const pts = plan.points.slice().sort((a, b) => (order[hue(a.impl)] - order[hue(b.impl)]) || (a.impl.id === "jev") - (b.impl.id === "jev"));
+  const labels = [];
+  for (const p of pts) {
+    const h = hue(p.impl), key = p.impl.id, main = key === "jev" || key === "bedrock";
+    const x = sx(p.x), y = sy(p.y);
+    const col = h === "dm" ? "var(--dm)" : h === "br" ? "var(--br)" : "var(--base)";
+    let mark;
+    if (h === "br") mark = `<rect class="mark" x="-5.5" y="-5.5" width="11" height="11" transform="rotate(45)" fill="${col}" stroke="var(--paper)" stroke-width="1.5"/>`;
+    else if (h === "base") mark = `<path class="mark" d="M0,-6 L5.5,4 L-5.5,4 Z" fill="none" stroke="${col}" stroke-width="1.5"/>`;
+    else if (main) mark = `<circle class="mark" r="6" fill="${col}" stroke="var(--paper)" stroke-width="1.5"/>`;
+    else mark = `<circle class="mark" r="4.2" fill="var(--paper)" stroke="${col}" stroke-width="1.6"/>`;
+    const ci = isNum(p.lo) && isNum(p.hi) ? `<line x1="0" x2="0" y1="${sy(p.hi) - y}" y2="${sy(p.lo) - y}" stroke="${col}" stroke-width="${main ? 2.5 : 1.5}" opacity="${main ? 0.45 : 0.3}" stroke-linecap="round"/>` : "";
+    g += `<g class="pt" data-key="${esc(key)}" data-suite="${suite}" tabindex="0" role="button" aria-label="${esc(short(p.impl))}, ${esc(label(suite))}: score ${fmtScore(p.y)}" style="transform:translate(${x.toFixed(1)}px,${y.toFixed(1)}px)"><title>${esc(short(p.impl))}: ${fmtScore(p.y)}</title>${ci}<circle class="halo" r="10"/>${mark}</g>`;
+    labels.push({ x, y, text: short(p.impl), cls: main ? `strong ${h}` : "", key, main: main ? 1 : 0 });
+  }
+  placeLabels(labels, labels.map((l) => ({ x: l.x, y: l.y, key: l.key })), { x0: M.l + 2, x1: W - 2, y0: 0, y1: H - M.b - 2 });
+  const unlabeled = [];
+  for (const l of labels) {
+    if (l.hidden) { unlabeled.push(l.text); continue; }
+    g += `<text class="lbl lbl-fade ${l.cls}" x="${l.tx.toFixed(1)}" y="${l.ty.toFixed(1)}" text-anchor="${l.anchor}">${esc(l.text)}</text>`;
+  }
+  const off = plan.excluded.filter((x) => x.entry.status === "evaluated").map((x) => {
+    const zero = x.entry.cost && x.entry.cost.zero_tariff && axis === "cost";
+    const why = zero ? "free policy, $0 (no place on a log axis)" : axis === "cost" ? "cost not measured" : (x.impl.type === "code_baseline" ? "under 1 ms" : "latency not measured");
+    return `${short(x.impl)} ${fmtScore(x.entry.quality && x.entry.quality.score)} (${why})`;
+  });
+  return { svg: g, off };
+}
+function nOf(e, track) {
+  if (track === "guardrail_fairness") { const g = ((e.bias && e.bias.groups) || [])[0]; return g ? (g.n_benign || 0) + (g.n_harmful || 0) : "?"; }
+  return e.sample && e.sample.total ? e.sample.total : "?";
+}
+function b2Of(e) { return e && e.bias && e.bias.pairs ? e.bias : null; }
+function b2Note() {
+  const n = Math.max(0, ...state.data.implementations.map((i) => (b2Of(entry(i.id, "bias", "guardrail_fairness")) || {}).pairs || 0));
+  return n
+    ? `B2 is provisional: ${n} counterfactual test pairs with single-AI reference labels, after hard and unresolved pairs were omitted. One flip is one pair, so read B2 as individual cases, not a rate.`
+    : "B2 counterfactual pairs await review.";
+}
+function biasBlock() {
+  const rows = state.data.implementations
+    .map((i) => ({ i, b1: entry(i.id, "bias", "guardrail_fairness"), b3: entry(i.id, "bias", "decision_bias") }))
+    .filter((r) => r.b1 || r.b3)
+    .sort((a, b) => ((scored(b.b1) ? b.b1.quality.score : -1) - (scored(a.b1) ? a.b1.quality.score : -1)));
+  const cellFor = (i, e, track) => {
+    const h = hue(i), col = h === "dm" ? "var(--dm)" : h === "br" ? "var(--br)" : "var(--base)";
+    if (!e) return `<td class="na">n/a</td>`;
+    if (e.status === "not_applicable") return `<td class="na">Not applicable</td>`;
+    if (!scored(e)) return `<td class="na">Not scored</td>`;
+    const v = e.quality.score;
+    if (track === "b2") {
+      const b = b2Of(e);
+      if (!b) return `<td class="na">Not scored</td>`;
+      const flips = Math.round(b.pair_flip_rate * b.pairs);
+      return `<td class="b2">${flips} of ${b.pairs} flip<span class="bb-n">${Math.round(b.paired_correctness * b.pairs)} both right</span></td>`;
+    }
+    return `<td><button class="bb pt" data-key="${esc(i.id)}" data-suite="bias" data-track="${track}" aria-label="${esc(short(i))}: ${fmtScore(v)}">
+      <span class="bb-track"><span class="bb-fill" style="width:${v}%;background:${col}"></span></span><span class="bb-v">${fmtScore(v)}</span><span class="bb-n">n=${nOf(e, track)}</span></button></td>`;
+  };
+  return `<div class="biaswrap"><table class="biastab">
+    <thead><tr><th>Implementation</th><th>Moderation on identity-related comments (B1)</th><th>Answers "unknown" when the context does not say (BBQ, B3)</th><th class="b2h">Flips when only the identity changes (B2, provisional)</th></tr></thead>
+    <tbody>${rows.map(({ i, b1, b3 }) => `<tr><td class="name"><span class="sw" style="background:${hue(i) === "dm" ? "var(--dm)" : hue(i) === "br" ? "var(--br)" : "var(--base)"}"></span>${esc(short(i))}</td>${cellFor(i, b1, "guardrail_fairness")}${cellFor(i, b3, "decision_bias")}${cellFor(i, b1, "b2")}</tr>`).join("")}</tbody>
+  </table></div>`;
+}
+function renderGrid() {
+  const dom = xDomain(state.axis);
+  const panel = (s) => {
+    const { svg, off } = dom ? panelSVG(s, state.axis, dom) : { svg: "", off: [] };
+    return `<div class="panel" id="panel-${s}" data-suite="${s}">
+      <h3>${esc(label(s))}</h3>
+      <p class="desc">${esc(DESC[s])}</p>
+      <svg class="plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label(s))}: quality against ${state.axis === "cost" ? "cost" : "p95 latency"}">${svg}</svg>
+      ${off.length ? `<p class="off">Off this axis: ${esc(off.join("; "))}.</p>` : ""}
+      ${s === "overall" ? "" : panelNote(s)}
+      ${viewsNote(s)}
+      ${s === "sensitive_information" && (entry("jev", s) || {}).sensitivity ? `<p class="off">Eight test rows carry SSN labels inferred from number format alone. Leaving the SSN type out, Jev scores ${fmtScore((entry("jev", s).sensitivity || {}).score)} and Bedrock ${fmtScore((entry("bedrock", s).sensitivity || {}).score)}; the primary score is kept.</p>` : ""}
+    </div>`;
+  };
+  return `<div class="grid grid-lead">${panel("overall")}<div class="panel aside">${overallAside()}</div></div>
+    <div class="grid">${CHARTS.map(panel).join("")}</div>`;
+}
+function overallAside() {
+  const prov = state.data.provisional;
+  return `<h3>Reading the overall</h3>
+    <ul class="notes">
+      <li><strong>Cost is a mix of category checks.</strong> It is the mean of the six category costs per 1,000 checks, each measured separately; word filters count both of their checks. It is not the price of one call.</li>
+      ${prov ? `<li><strong>Provisional.</strong> Denied topics and the profanity half of word filters use single-AI reference labels, not independent human review. The other categories are unchanged from the corrected five-category results.</li>` : ""}
+      <li><strong>Quality</strong> is the equal-weight mean of the six category scores, with a paired 95% interval.</li>
+      <li><strong>Bias is kept separate.</strong> It is not in this score; see its own section below.</li>
+      <li><strong>Speed is compared per category.</strong> No single call spans six categories.</li>
+    </ul>`;
+}
+function viewsNote(s) {
+  const sv = state.data.sensitivity_views;
+  const vs = sv ? sv.views.filter((v) => v.suite === s) : [];
+  if (!vs.length) return "";
+  const f = (v, k) => `${fmtScore(v.primary[k])} to ${fmtScore(v.scores[k])}`;
+  return `<p class="off"><strong>Post-hoc views</strong>, Jev then Bedrock, primary score to view. ${vs.map((v) => `${esc(v.label.charAt(0).toUpperCase() + v.label.slice(1))} (${v.rows_dropped} rows): Jev ${f(v, "jev")}, Bedrock ${f(v, "bedrock")}.`).join(" ")} Same frozen thresholds; the primary score stands.</p>`;
+}
+function panelNote(s) {
+  if (s === "overall") return `<p class="off">Overall cost is a mix of category checks, not the price of one call: the mean of the six category costs per 1,000 checks, each measured separately, with word filters counting both of its checks.${state.data.provisional ? " Provisional: two of the six categories (denied topics, and profanity within word filters) use single-AI reference labels." : ""} Bias is not in this score.</p>`;
+  if (s === WF) {
+    const j = entry("jev", "word_filters"), b = entry("bedrock", "word_filters"), jp = entry("jev", "profanity"), bp = entry("bedrock", "profanity");
+    const sub = scored(j) && scored(b) && scored(jp) && scored(bp)
+      ? ` Custom words ${fmtScore(j.quality.score)} vs ${fmtScore(b.quality.score)}; profanity ${fmtScore(jp.quality.score)} vs ${fmtScore(bp.quality.score)} (Jev vs Bedrock).` : "";
+    const rx = entry("regex", "word_filters");
+    return `<p class="off">Equal-weight mean of two checks, each measured on its own rows; cost is their sum.${sub}${scored(rx) ? ` The regex word list checks custom words only (${fmtScore(rx.quality.score)}), so it has no category score.` : ""}</p>`;
+  }
+  return "";
+}
+function renderBias() {
+  return `<section aria-labelledby="h-bias" id="bias">
+    <h2 id="h-bias">Bias, reported separately</h2>
+    <p class="sub">Outside the six-category score and the overall. No cost or latency was recorded per bias run.</p>
+    <div class="grid grid-one">${biasPanel()}</div>
+  </section>`;
+}
+function biasPanel() {
+  return `<div class="panel panel-wide" id="panel-bias" data-suite="bias">
+      <div class="wide-head">
+        <div><h3>Bias, exploratory</h3>
+        <p class="desc">${esc(DESC.bias)}. B1 is balanced accuracy on comments that mention identities. B3 is BBQ accuracy on questions whose context does not give the answer, so the right answer is "unknown". Bedrock does not answer B3 questions: not applicable, not zero.</p></div>
+        <p class="off">Read these as exploratory diagnostics, not a fairness ranking. The selected cases are too sparse and unmatched for group comparisons: discrim-eval's 50 cases span 31 scenarios, so demographic groups mostly answered different questions, and Civil Comments has 1 to 18 comments per identity. No cost or latency was recorded per bias run, so bias has no cost axis. These are summary scores without intervals: at these sample sizes, read gaps under about ten points as noise. ${b2Note()} Identity groups within B1 are too small to compare one group with another.</p>
+      </div>
+      ${biasBlock()}
+    </div>`;
+}
+const chartsTitle = (axis) => axis === "cost" ? "Quality against cost: overall and six categories" : "Quality against speed, by category";
+function renderCharts() {
+  return `<section aria-labelledby="h-charts" id="charts">
+    <div class="bar">
+      <div>
+        <h2 id="h-charts">${chartsTitle(state.axis)}</h2>
+        <p class="sub" style="margin:0">One overall chart and six category charts on shared axes. Every point is a measured result on the frozen test split; nothing is estimated or drawn at zero. Up is better; left is cheaper or faster. Select a point for its details.</p>
+      </div>
+      <div class="seg" role="group" aria-label="Horizontal axis">
+        <button type="button" data-axis="cost" aria-pressed="${state.axis === "cost"}">Cost</button>
+        <button type="button" data-axis="p95" aria-pressed="${state.axis === "p95"}">p95 latency, serial</button>
+      </div>
+    </div>
+    <div id="grid">${renderGrid()}</div>
+  </section>`;
+}
+/* Axis switch: move points in place so they glide to their new positions. */
+function switchAxis(axis) {
+  if (axis === state.axis) return;
+  state.axis = axis;
+  document.querySelectorAll(".seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.axis === axis)));
+  $("h-charts").textContent = chartsTitle(axis);
+  const tmp = document.createElement("div");
+  tmp.innerHTML = renderGrid();
+  const grid = $("grid");
+  ["overall", ...CHARTS].forEach((s) => {
+    const cur = grid.querySelector(`#panel-${s}`), next = tmp.querySelector(`#panel-${s}`);
+    const curSvg = cur.querySelector("svg.plot"), nextSvg = next.querySelector("svg.plot");
+    const moved = new Map([...nextSvg.querySelectorAll(".pt")].map((n) => [n.dataset.key, n.getAttribute("style")]));
+    const keep = [...curSvg.querySelectorAll(".pt")].filter((n) => moved.has(n.dataset.key));
+    if (keep.length !== moved.size || keep.length !== curSvg.querySelectorAll(".pt").length) { cur.replaceWith(next); return; }
+    // swap static layers, keep point nodes and animate their transforms
+    const pts = new Map(keep.map((n) => [n.dataset.key, n]));
+    [...nextSvg.querySelectorAll(".pt")].forEach((n) => {
+      const old = pts.get(n.dataset.key);
+      n.replaceWith(old);
+      requestAnimationFrame(() => { old.setAttribute("style", moved.get(n.dataset.key)); });
+    });
+    curSvg.replaceWith(nextSvg);
+    const offOld = cur.querySelector(".off"), offNew = next.querySelector(".off");
+    if (offOld) offOld.remove();
+    if (offNew) cur.append(offNew);
+    cur.querySelector("svg.plot").setAttribute("aria-label", nextSvg.getAttribute("aria-label"));
+  });
+}
+
+/* ---------- data scope ---------- */
+const BASIS = { human: "human", llm: "LLM", automated: "automated", deterministic: "deterministic", synthetic_reviewed: "synthetic", unknown: "not stated by source" };
+function renderScope() {
+  const dq = state.data.data_quality || [];
+  if (!dq.length) return "";
+  const src = (q) => q.sources.map((x) => `${esc(x.source.replace(/_/g, " "))}: ${x.n} ${esc(x.role.replace(/_/g, " "))}, ${esc(BASIS[x.label_basis] || x.label_basis)} labels`).join("<br>") || `<span class="na">none yet</span>`;
+  return `<section aria-labelledby="h-scope">
+    <h2 id="h-scope">What the test data can and cannot show</h2>
+    <p class="sub">Where each capability's test rows come from, how they were labelled, and the claim they support. Groups count source documents, conversations or templates; rows from one group are not independent evidence.</p>
+    <div class="tablewrap"><table class="all scope">
+      <thead><tr><th>Capability</th><th>Test rows</th><th>Groups</th><th>Sources and label basis</th><th>Supports</th><th>Does not show</th></tr></thead>
+      <tbody>${dq.map((q) => `<tr><td class="name">${esc(label(q.suite))}</td><td>${q.test_cases}</td><td>${q.groups}</td><td class="wrap">${src(q)}</td><td class="wrap">${esc(q.supports || "")}</td><td class="wrap">${esc(q.limits)}</td></tr>`).join("")}</tbody>
+    </table></div>
+  </section>`;
+}
+
+/* ---------- table ---------- */
+function allRows() {
+  const out = [];
+  for (const s of ROWS) out.push(...G.tableRows(state.data, G.rowsFor(state.data, s, null)));
+  for (const t of G.BIAS_TRACKS) out.push(...G.tableRows(state.data, G.rowsFor(state.data, "bias", t.id)));
+  return out;
+}
+function renderTable() {
+  const cell = (v, f) => (v === null || v === undefined ? `<td class="na">n/a</td>` : `<td>${esc(f ? f(v) : v)}</td>`);
+  let body = "";
+  for (const s of ["overall", ...ROWS.flatMap((r) => (r === "profanity" ? [r, WF] : [r]))]) {
+    body += `<tr class="grp"><td colspan="11">${esc(s === "overall" ? "Overall, all six categories" : s === WF ? label(s) + ", category: equal weight, cost summed" : label(s))}</td></tr>`;
+    const rows = rowsOf(s).filter((r) => r.entry.status === "evaluated")
+      .sort((a, b) => b.entry.quality.score - a.entry.quality.score);
+    if (!rows.length) body += `<tr><td colspan="11" class="na" style="text-align:left">${s === "overall" ? "Ranked only when all six categories are scored; never averaged over five." : "Not scored yet. Test rows await human review."}</td></tr>`;
+    for (const { impl, entry: e } of rows) {
+      const h = hue(impl), i = iv(e) || {};
+      const cost = e.cost && e.cost.zero_tariff && e.cost.usd_per_1000 === 0 ? "$0 (free)" : e.cost && isNum(e.cost.usd_per_1000) ? fmtUSD(e.cost.usd_per_1000) : "not measured";
+      body += `<tr class="row" tabindex="0" data-key="${esc(impl.id)}" data-suite="${s}">
+        <td class="name"><span class="sw" style="background:${h === "dm" ? "var(--dm)" : h === "br" ? "var(--br)" : "var(--base)"}"></span>${esc(short(impl))}</td>
+        <td>${esc(fmtScore(e.quality.score))}</td>
+        ${cell(cost)}
+        ${cell(isNum(i.low) ? `${i.low.toFixed(1)} to ${i.high.toFixed(1)}` : null)}
+        ${cell(e.violation_recall, G.fmtPct)}
+        ${cell(e.benign_pass_rate, G.fmtPct)}
+        ${cell(e.recall_at_fpr_budget ? e.recall_at_fpr_budget.recall : null, G.fmtPct)}
+        ${cell(e.latency ? e.latency.p50_s : null, G.fmtSeconds)}
+        ${cell(e.latency ? e.latency.p95_s : null, G.fmtSeconds)}
+        ${cell(e.sample ? e.sample.total : null, (v) => v.toLocaleString("en"))}
+        ${cell(e.failures ? (e.failures.recovered_after_failure ? `${e.failures.failed} (${e.failures.recovered_after_failure} recovered)` : e.failures.failed) : null)}
+      </tr>`;
+    }
+  }
+  return `<section aria-labelledby="h-table">
+    <div class="bar">
+      <div><h2 id="h-table">Every number</h2><p class="sub" style="margin:0">Sorted by score within each capability. Select a row for its details.</p></div>
+      <div class="tools">
+        <button class="btn" type="button" id="dl-csv"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>CSV</button>
+        <button class="btn" type="button" id="dl-json"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>JSON</button>
+      </div>
+    </div>
+    <div class="tablewrap"><table class="all">
+      <thead><tr><th>Implementation</th><th>Score</th><th>Cost per 1,000</th><th>95% interval</th><th>Recall</th><th>Benign pass</th><th>Recall at 5% FPR</th><th>p50 serial</th><th>p95 serial</th><th>Rows</th><th>Failed</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>
+  </section>`;
+}
+function download(name, text, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ---------- method ---------- */
+function renderMethod() {
+  const d = state.data;
+  const blockers = [...(d.blockers || []), ...(d.disclosures || [])].map((b) => `<li>${esc(b.charAt(0).toUpperCase() + b.slice(1))}.</li>`).join("");
+  return `<section aria-labelledby="h-method">
+    <h2 id="h-method">How to read this, and what it does not show</h2>
+    <div class="cols">
+      <div>
+        <h3>What is compared</h3>
+        <p>Complete guardrail implementations: a decision model with its questions, decision rule and threshold, against Amazon Bedrock Guardrails with its supported configuration. Each was tuned on separate tuning rows, frozen, then run once on the held-out test rows.</p>
+        <h3>The score</h3>
+        <p>${esc(d.benchmark.headline_metric)}. Subtasks count equally within a capability. Intervals are 95% ${esc((iv(d.entries.find((e) => iv(e))) || {}).method || "bootstrap")}. They measure sampling uncertainty only, not label errors, source artifacts or possible exposure of these public datasets during model training.</p>
+        <h3>Cost and latency</h3>
+        <p>${esc(d.cost_basis.notes)} ${esc(d.latency_basis.notes)}</p>
+      </div>
+      <div>
+        <h3>Limits of this run</h3>
+        <ul>${blockers}</ul>
+        ${(d.corrections || []).length ? `<h3>Corrections after the run</h3><ul>${d.corrections.map((c) => `<li><strong>${esc(c.title)}.</strong> ${esc(c.detail)}${c.code_commit ? ` Code <code>${esc(c.code_commit)}</code>.` : ""}</li>`).join("")}</ul>` : ""}
+        <h3>Reproduce</h3>
+        <p>Results file <a href="${esc(resultsPath())}">${esc(resultsPath())}</a>, dataset ${esc(d.benchmark.dataset_version)} (<code>${esc((d.benchmark.dataset_sha256 || "").slice(0, 12))}</code>), release manifest <code>${esc(d.benchmark.release_manifest || "n/a")}</code>.</p>
+      </div>
+    </div>
+  </section>`;
+}
+
+/* ---------- details ---------- */
+function openDetail(key, suite, track, anchor) {
+  const impl = implById(key);
+  const e = suite === "bias" ? entry(key, "bias", track) : entry(key, suite);
+  if (!impl || !e) return;
+  const h = hue(impl), col = h === "dm" ? "var(--dm)" : h === "br" ? "var(--br)" : "var(--base)";
+  const i = iv(e);
+  const rows = [];
+  const add = (k, v) => { if (v !== null && v !== undefined && v !== "") rows.push(`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`); };
+  let extra = "";
+  if (suite !== "bias") {
+    add("Recall", G.fmtPct(e.violation_recall));
+    add("Benign pass rate", G.fmtPct(e.benign_pass_rate));
+    if (e.recall_at_fpr_budget) add("Recall at 5% FPR", `${G.fmtPct(e.recall_at_fpr_budget.recall)} (test FPR ${G.fmtPct(e.recall_at_fpr_budget.heldout_fpr)})`);
+    if (e.sample) add("Test rows", `${e.sample.total} (${e.sample.positive} violations, ${e.sample.negative} benign)`);
+    if (e.errors) add("Missed, false alarms", `${e.errors.missed_violations}, ${e.errors.false_positives}`);
+    if (e.failures) add("Failed calls", e.failures.failed);
+    if (e.failures && e.failures.recovered_after_failure) add("Recovered on re-attempt", `${e.failures.recovered_after_failure} rows, both runs charged`);
+    add("Cost per 1,000", (e.cost && e.cost.zero_tariff && e.cost.usd_per_1000 === 0 ? "$0, free policy" : fmtUSD(e.cost && e.cost.usd_per_1000))
+      + (e.cost && /mean|sum/.test(e.cost.basis || "") ? ` (${e.cost.basis})` : ""));
+    if (e.latency) add("Latency p50, p95 (serial)", `${G.fmtSeconds(e.latency.p50_s)}, ${G.fmtSeconds(e.latency.p95_s)}`);
+    if (e.latency && isNum(e.latency.loaded_p95_s)) add("p95 in the test pass", `${G.fmtSeconds(e.latency.loaded_p95_s)} (its own concurrency)`);
+    if (e.threshold) add("Threshold", isNum(e.threshold.value) ? e.threshold.value : e.threshold.rule);
+    if (e.sensitivity) add("Without format-inferred SSN", `${fmtScore(e.sensitivity.score)}${e.sensitivity.interval ? ` (${e.sensitivity.interval.low.toFixed(1)} to ${e.sensitivity.interval.high.toFixed(1)})` : ""}`);
+    if (e.ledger) add("Config hash", e.ledger.config_hash);
+  } else if (e.bias && e.bias.groups && e.bias.groups.length) {
+    add("Harmful recall", G.fmtPct(e.violation_recall));
+    add("Benign pass rate", G.fmtPct(e.benign_pass_rate));
+    const g = e.bias.groups.filter((x) => (x.n_benign || 0) + (x.n_harmful || 0) >= 5);
+    extra = `<table><thead><tr><th>Group</th><th>FPR</th><th>FNR</th><th>n</th></tr></thead><tbody>${g.map((x) => `<tr><td>${esc(x.group)}</td><td>${esc(G.fmtPct(x.fpr))}</td><td>${esc(G.fmtPct(x.fnr))}</td><td>${(x.n_benign || 0) + (x.n_harmful || 0)}</td></tr>`).join("")}</tbody></table>`;
+  }
+  const where = suite === "bias" ? (track === "decision_bias" ? "Bias, decision tasks (B3)" : "Bias, moderation on identity mentions (B1)") : label(suite);
+  $("detail-body").innerHTML = `
+    <h4 id="detail-title" style="color:${col}">${esc(impl.label)}</h4>
+    <p class="where">${esc(where)}</p>
+    <div class="big">${fmtScore(e.quality && e.quality.score)}<small>${i ? `95% interval ${i.low.toFixed(1)} to ${i.high.toFixed(1)}` : ""}</small></div>
+    <dl>${rows.join("")}</dl>${extra}
+    ${e.status_note ? `<p class="note">${esc(e.status_note)}</p>` : ""}
+    ${impl.configuration && impl.configuration.notes ? `<p class="note">${esc(impl.configuration.notes)}</p>` : ""}`;
+  const d = $("detail");
+  d.hidden = false;
+  requestAnimationFrame(() => d.classList.add("on"));
+  state.anchor = anchor || null;
+  if (state.viaKey) $("detail-close").focus({ preventScroll: true });
+}
+function closeDetail() {
+  const d = $("detail");
+  d.classList.remove("on");
+  setTimeout(() => { if (!d.classList.contains("on")) d.hidden = true; }, 260);
+  if (state.anchor && document.contains(state.anchor)) state.anchor.focus({ preventScroll: true });
+}
+
+/* ---------- assemble ---------- */
+function render() {
+  renderOpening();
+  $("main").innerHTML = renderLedger() + renderCharts() + renderBias() + renderScope() + renderTable() + renderMethod();
+  $("foot-right").textContent = `Generated ${state.data.benchmark.generated_at}. Tariffs dated ${state.data.cost_basis.tariff_date || "n/a"}.`;
+}
+document.addEventListener("click", (ev) => {
+  const ax = ev.target.closest(".seg button");
+  if (ax) return switchAxis(ax.dataset.axis);
+  const pt = ev.target.closest(".pt, tr.row");
+  if (pt) return openDetail(pt.dataset.key, pt.dataset.suite, pt.dataset.track || null, pt);
+  const lr = ev.target.closest(".lrow[data-suite]");
+  if (lr) return litPanel(lr.dataset.suite);
+  if (ev.target.closest("#detail-close")) return closeDetail();
+  if (ev.target.id === "dl-csv") return download("gold-rails-results.csv", G.toCSV(allRows()), "text/csv");
+  if (ev.target.id === "dl-json") return download("gold-rails-results.json", JSON.stringify(state.data, null, 1), "application/json");
+  if ($("detail").classList.contains("on") && !ev.target.closest("#detail")) closeDetail();
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && $("detail").classList.contains("on")) return closeDetail();
+  if ((ev.key === "Enter" || ev.key === " ") && ev.target.matches(".pt, tr.row, .lrow[data-suite]")) { ev.preventDefault(); state.viaKey = true; ev.target.click(); state.viaKey = false; }
+});
+function litPanel(suite) {
+  const p = $("panel-" + (suite === "word_filters" || suite === "profanity" ? WF : suite));
+  if (!p) return;
+  p.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+  p.classList.add("lit");
+  setTimeout(() => p.classList.remove("lit"), 1400);
+}
+load();
+</script>
+</body>
+</html>

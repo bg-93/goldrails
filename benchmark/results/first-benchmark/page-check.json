@@ -1,0 +1,84 @@
+{
+ "checked_at_commit": "ca4b587",
+ "results": "site/leaderboard/results.json",
+ "frozen": "benchmark/results/first-benchmark/leaderboard-v1.2.json",
+ "passed": 15,
+ "failed": 0,
+ "checks": [
+  {
+   "check": "every frozen arm appears once with matching score, interval, cost, rows and threshold",
+   "ok": true,
+   "detail": "50 arms"
+  },
+  {
+   "check": "every arm used its freeze manifest's thresholds",
+   "ok": true,
+   "detail": "83 frozen arms"
+  },
+  {
+   "check": "freeze manifests are committed and unchanged",
+   "ok": true,
+   "detail": "0bc22cbc93f8, 20acbdb040ff, 1cd7bab4ca81, 572c327a4bcb"
+  },
+  {
+   "check": "extension manifests committed before the test rows they govern",
+   "ok": true,
+   "detail": "ext1 3c88be6 before 9186507; ext2 a08a3b3 before 9c3e8e8"
+  },
+  {
+   "check": "overall matches the frozen overall block (score, interval, cost, categories, composition)",
+   "ok": true,
+   "detail": "7 ranked implementations"
+  },
+  {
+   "check": "overall ranking order matches",
+   "ok": true,
+   "detail": "page ['jev', 'kev-9b', 'kev-4b', 'bedrock', 'open-jev-2b', 'kev-0-8b', 'laya'] / frozen ['jev', 'kev-9b', 'kev-4b', 'bedrock', 'open-jev-2b', 'kev-0-8b', 'laya']"
+  },
+  {
+   "check": "overall has no pooled latency (compared on cost only)",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "check": "core categories identical to the corrected five-category view (PII excepted: replaced in v1.2)",
+   "ok": true,
+   "detail": "29 of 29 corrected arms"
+  },
+  {
+   "check": "denied topics, profanity and overall are marked provisional",
+   "ok": true,
+   "detail": "denied_topics, overall, profanity"
+  },
+  {
+   "check": "data scope shows the AI-labelled rows with label basis llm",
+   "ok": true,
+   "detail": "denied topics 73, profanity 191"
+  },
+  {
+   "check": "bias matches bias.json and stays outside the overall",
+   "ok": true,
+   "detail": "B1 and B2 per system"
+  },
+  {
+   "check": "every page correction's commit is in CORRECTIONS.md",
+   "ok": true,
+   "detail": "8 corrections"
+  },
+  {
+   "check": "every commit named in CORRECTIONS.md exists",
+   "ok": true,
+   "detail": "23 commits"
+  },
+  {
+   "check": "post-hoc views on the page match sensitivity-2026-09-24.json, with rules committed first",
+   "ok": true,
+   "detail": "5 views"
+  },
+  {
+   "check": "page carries exactly the leaderboard's publication blockers, and says not for publication while any stand",
+   "ok": true,
+   "detail": "evaluation contract v1.1-draft is draft, not signed off; analysis-approval-4.json: recorded on the approver's written instructions but not yet confirmed by the approver for these exact hashes"
+  }
+ ]
+}

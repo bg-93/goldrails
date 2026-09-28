@@ -1,0 +1,5 @@
+project_id = "your-gcp-project"
+region     = "us-central1"
+zone       = "us-central1-a"
+spot       = true
+# machine_type = "g2-standard-8"   # one L4: serve one 9B at a time, edit `models` accordingly

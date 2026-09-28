@@ -1,0 +1,12 @@
+# Full open-model roster on one VM: four L4s, every model resident.
+project_id   = "your-gcp-project"
+machine_type = "g2-standard-48"
+spot         = true
+models = [
+  { name = "kev-0-8b",    kind = "kev",     ref = "jaredpalmer/kev-0.8b",  revision = "54f4f8777356cd5bbbb6c6919c657f26e6f2f6d8",  port = 8009, gpu = 0 },
+  { name = "kev-4b",      kind = "kev",     ref = "jaredpalmer/kev-4b",  revision = "485ace8703592fcf405488b262449990824cfed1",    port = 8010, gpu = 0 },
+  { name = "kev-9b",      kind = "kev",     ref = "jaredpalmer/kev-9b",  revision = "2629c06a5aeb0feb3b9783bafed17ed8f39ecf5c",    port = 8011, gpu = 1 },
+  { name = "open-jev-2b", kind = "openjev", ref = "ZefanCai/Open-Jev-2B",  revision = "0c7aa498b1627be8da4acf34c863ff0ee0a92785",  port = 8791, gpu = 2 },
+  { name = "open-jev-9b", kind = "openjev", ref = "ZefanCai/Open-Jev-9B",  revision = "47e966881e489511c0c7f5633a9e1960a676a551",  port = 8792, gpu = 3 },
+  { name = "laya", kind = "laya", ref = "convaiinnovations/laya", revision = "1c5edc17a7acd8701df6fc341c0d179f1c62c982", port = 8012, gpu = 1 },
+]

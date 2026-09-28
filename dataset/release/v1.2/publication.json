@@ -1,0 +1,32 @@
+{
+ "release": "v1.2",
+ "destination": "https://huggingface.co/datasets/raxITLabs/goldrails",
+ "visibility": "private",
+ "uploaded": "2026-09-28",
+ "hub_commit": "492f10cf2be3b27155e083f012c3e3a7917780a4",
+ "package": "dataset/publish/v1.2-full",
+ "authorised_by": "the project owner in chat, 28 September 2026: \"go ahead, update the page and publish to HF\" (private first, then public, as chosen earlier)",
+ "verified_from_hub": {
+  "files_byte_identical_to_staging_report": "15 of 15",
+  "rows_loaded": 8565,
+  "card_names": "raxITLabs/goldrail"
+ },
+ "open": [
+  "switch to public on the owner's word (given 28 September 2026)",
+  "the card's code link (github.com/raxITlabs/goldrails, tag v0.0.1) resolves once the code repository is pushed"
+ ],
+ "renamed": [
+  {
+   "from": "raxITLabs/gold-rails",
+   "to": "raxITLabs/goldrail",
+   "date": "2026-09-28"
+  },
+  {
+   "from": "raxITLabs/goldrail",
+   "to": "raxITLabs/goldrails",
+   "date": "2026-09-28",
+   "by": "owner instruction in chat: goldrails, and version v0.0.1 for this first release"
+  }
+ ],
+ "public_version": "v0.0.1 (first public release, built from internal release v1.2)"
+}

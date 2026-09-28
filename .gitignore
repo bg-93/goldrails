@@ -1,0 +1,22 @@
+.env
+node_modules/
+.DS_Store
+coverage/
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+dataset/samples/raw/
+*.egg-info/
+vendor/
+infra/**/.terraform/
+infra/**/*.tfstate*
+infra/**/terraform.tfvars
+infra/**/.terraform.lock.hcl
+.pytest_cache/
+docs/ts-spikes/node_modules/
+dataset/release/*/build/
+dataset/release/*/hf/
+.impeccable/review/
+
+# publication staging data (generated; README, SOURCES, NOTICE and reports are committed)
+dataset/publish/*/data/

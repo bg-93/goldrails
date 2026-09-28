@@ -1,0 +1,943 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raxit.ai/goldrails/leaderboard/results.schema.json",
+  "title": "Gold Rails leaderboard results",
+  "description": "What site/leaderboard/index.html renders. One entry per (implementation, view). The page also accepts the evaluator's native document (benchmark/goldrails_bench/leaderboard.py, schema goldrails-leaderboard/0.1) and converts it with leaderboard.js fromEvaluator, so a published run needs no hand conversion. Scoring follows the completion plan: task score = 100 x 0.5 x (violation recall + benign pass rate), suites averaged equally, overall ranked only when all six suites are evaluated.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "placeholder",
+    "benchmark",
+    "cost_basis",
+    "latency_basis",
+    "implementations",
+    "entries"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "goldrails-leaderboard-site/0.1",
+      "description": "The page's display format. The evaluator's own output (benchmark/goldrails_bench/leaderboard.py, schema goldrails-leaderboard/0.1) is also accepted and converted in leaderboard.js (fromEvaluator)."
+    },
+    "placeholder": {
+      "type": "boolean",
+      "description": "true for invented demonstration values. The page shows a banner and suffixes every label while this is true. A real export sets false."
+    },
+    "notice": {
+      "type": "string"
+    },
+    "benchmark": {
+      "type": "object",
+      "required": [
+        "name",
+        "dataset_version",
+        "dataset_sha256",
+        "split",
+        "evaluation_contract",
+        "generated_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "dataset_version": {
+          "type": "string"
+        },
+        "dataset_sha256": {
+          "type": "string"
+        },
+        "dataset_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "split": {
+          "enum": [
+            "test",
+            "tune"
+          ],
+          "description": "test for published results. tune is allowed only for pipeline checks and the page labels it."
+        },
+        "evaluation_contract": {
+          "type": "string",
+          "description": "Path or version of the frozen evaluation contract."
+        },
+        "release_manifest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "generated_at": {
+          "type": "string"
+        },
+        "headline_metric": {
+          "type": "string"
+        },
+        "aggregation": {
+          "type": "string"
+        },
+        "fpr_budget": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "cost_basis": {
+      "type": "object",
+      "required": [
+        "unit",
+        "tariff_date",
+        "notes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "unit": {
+          "const": "usd_per_1000_evaluations"
+        },
+        "tariff_date": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "region": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "latency_basis": {
+      "type": "object",
+      "required": [
+        "unit",
+        "notes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "unit": {
+          "const": "seconds"
+        },
+        "concurrency": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "client_location": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "suites": {
+      "type": "array",
+      "description": "Optional display overrides. The page always shows the fixed tab set; this can only relabel or annotate it.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/suite_id"
+          },
+          "label": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "implementations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/implementation"
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Publication blockers carried from the evaluator; the page lists them in the banner."
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Where a converted document came from (evaluator schema, mode, validity)."
+    },
+    "corrections": {
+      "type": "array",
+      "description": "Post-run corrections to scoring or reporting, newest first. The original results stay published beside them.",
+      "items": {
+        "type": "object",
+        "required": [
+          "date",
+          "title",
+          "detail"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "code_commit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "data_quality": {
+      "type": "array",
+      "description": "Per suite: what the test rows are made of and what they can support.",
+      "items": {
+        "type": "object",
+        "required": [
+          "suite",
+          "test_cases",
+          "groups",
+          "sources",
+          "limits"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "suite": {
+            "$ref": "#/$defs/suite_id"
+          },
+          "test_cases": {
+            "type": "integer"
+          },
+          "groups": {
+            "type": "integer"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "source",
+                "label_basis",
+                "n"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "source": {
+                  "type": "string"
+                },
+                "label_basis": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "n": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "supports": {
+            "type": "string"
+          },
+          "limits": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "disclosures": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Known limits that do not block publication, e.g. a local baseline whose cost is not measured."
+    },
+    "provisional": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Suites whose reference labels are provisional, and why.",
+      "properties": {
+        "suites": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "sensitivity_views": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Post-hoc sensitivity views committed after the data-quality review; shown beside, never in place of, primary scores."
+    }
+  },
+  "$defs": {
+    "suite_id": {
+      "enum": [
+        "overall",
+        "content",
+        "prompt_attacks",
+        "denied_topics",
+        "word_filters",
+        "profanity",
+        "sensitive_information",
+        "grounding",
+        "bias"
+      ]
+    },
+    "nullable_number": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "nullable_count": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "interval": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "low",
+        "high",
+        "level",
+        "method"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "low": {
+          "type": "number"
+        },
+        "high": {
+          "type": "number"
+        },
+        "level": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "method": {
+          "type": "string",
+          "description": "For example: paired group bootstrap over conversation/source/attack groups, 2000 resamples."
+        }
+      }
+    },
+    "implementation": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "type",
+        "frozen",
+        "configuration"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:|/-]*$"
+        },
+        "label": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "hosted_api",
+            "self_hosted",
+            "managed_service",
+            "code_baseline",
+            "unknown"
+          ]
+        },
+        "frozen": {
+          "type": "boolean",
+          "description": "Only frozen implementations are plotted."
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hardware": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sweep": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Set only for a genuine configuration sweep that changes measured work (single pass vs cascade, batching). Never for a threshold change.",
+          "required": [
+            "id",
+            "order"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "order": {
+              "type": "integer"
+            }
+          }
+        },
+        "configuration": {
+          "type": "object",
+          "required": [
+            "config_hash"
+          ],
+          "additionalProperties": true,
+          "properties": {
+            "config_hash": {
+              "type": "string"
+            },
+            "question_set": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "decision_rule": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "guardrail": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "notes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "scope": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/suite_id"
+          },
+          "description": "Views this implementation appears in. Omitted means every view, with a labelled not-evaluated row where it has no entry."
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "required": [
+        "implementation",
+        "suite",
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "implementation": {
+          "type": "string"
+        },
+        "suite": {
+          "$ref": "#/$defs/suite_id"
+        },
+        "track": {
+          "enum": [
+            "guardrail_fairness",
+            "decision_bias",
+            null
+          ],
+          "description": "Bias only: guardrail_fairness covers B1/B2, decision_bias covers B3."
+        },
+        "status": {
+          "enum": [
+            "evaluated",
+            "not_evaluated",
+            "not_applicable",
+            "failed"
+          ],
+          "description": "Only evaluated entries are plotted. not_applicable is used, for example, for Bedrock on B3 decision tasks; it is never scored as zero."
+        },
+        "status_note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "missing_suites": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/suite_id"
+          },
+          "description": "Overall only: suites that stop the overall score from being ranked."
+        },
+        "quality": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "score"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "interval": {
+              "$ref": "#/$defs/interval"
+            },
+            "conditional_score": {
+              "$ref": "#/$defs/nullable_number",
+              "description": "Score over decided rows only, shown beside the primary score."
+            }
+          }
+        },
+        "components": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Overall only: the six suite scores the aggregate averages.",
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "violation_recall": {
+          "$ref": "#/$defs/nullable_number"
+        },
+        "benign_pass_rate": {
+          "$ref": "#/$defs/nullable_number"
+        },
+        "recall_at_fpr_budget": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "budget",
+            "recall",
+            "heldout_fpr"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "budget": {
+              "type": "number"
+            },
+            "recall": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "heldout_fpr": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "feasible": {
+              "type": "boolean"
+            }
+          }
+        },
+        "threshold": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "value",
+            "selected_on",
+            "rule"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "type": [
+                "number",
+                "string",
+                "null"
+              ],
+              "description": "Numeric cut, or a label such as 'service operating point' for a binary service."
+            },
+            "selected_on": {
+              "enum": [
+                "tune",
+                "fixed"
+              ]
+            },
+            "rule": {
+              "type": "string"
+            }
+          }
+        },
+        "sample": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "total",
+            "positive",
+            "negative"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "total": {
+              "$ref": "#/$defs/nullable_count"
+            },
+            "positive": {
+              "$ref": "#/$defs/nullable_count"
+            },
+            "negative": {
+              "$ref": "#/$defs/nullable_count"
+            },
+            "groups": {
+              "$ref": "#/$defs/nullable_count"
+            }
+          }
+        },
+        "errors": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "missed_violations",
+            "false_positives"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "missed_violations": {
+              "$ref": "#/$defs/nullable_count"
+            },
+            "false_positives": {
+              "$ref": "#/$defs/nullable_count"
+            }
+          }
+        },
+        "failures": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "failed",
+            "no_decision"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "failed": {
+              "$ref": "#/$defs/nullable_count"
+            },
+            "no_decision": {
+              "$ref": "#/$defs/nullable_count"
+            },
+            "retries": {
+              "$ref": "#/$defs/nullable_count"
+            },
+            "recovered_after_failure": {
+              "$ref": "#/$defs/nullable_count",
+              "description": "Rows that failed in the original run and succeeded when re-attempted under the same frozen configuration. Both runs are charged in cost."
+            }
+          }
+        },
+        "coverage": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "subtasks_evaluated",
+            "subtasks_required"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "subtasks_evaluated": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "subtasks_required": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "note": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "cost": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Null when not measured. A value of zero is never a default: the page refuses to plot 0 on a cost axis and flags it.",
+          "required": [
+            "usd_per_1000",
+            "basis"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "usd_per_1000": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "description": "Zero is allowed only with zero_tariff: true (a documented zero list price, for example a free policy). The page never plots zero on the log axis."
+            },
+            "basis": {
+              "type": "string",
+              "description": "derived_usage_times_tariff, allocated_vm_time, local_cpu_allocated, ..."
+            },
+            "note": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "zero_tariff": {
+              "type": "boolean"
+            }
+          }
+        },
+        "latency": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "p50_s",
+            "p95_s"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "p50_s": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "p95_s": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "exclusiveMinimum": 0
+            },
+            "throughput_per_s": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "basis": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "How latency was measured, e.g. serial (one request at a time) or under the test pass's declared concurrency."
+            },
+            "loaded_p95_s": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "description": "p95 under the test pass's declared concurrency, kept for reference; not comparable across systems."
+            }
+          }
+        },
+        "bias": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "groups": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "group"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "group": {
+                    "type": "string"
+                  },
+                  "fpr": {
+                    "$ref": "#/$defs/nullable_number"
+                  },
+                  "fpr_interval": {
+                    "$ref": "#/$defs/interval"
+                  },
+                  "fnr": {
+                    "$ref": "#/$defs/nullable_number"
+                  },
+                  "fnr_interval": {
+                    "$ref": "#/$defs/interval"
+                  },
+                  "n_benign": {
+                    "$ref": "#/$defs/nullable_count"
+                  },
+                  "n_harmful": {
+                    "$ref": "#/$defs/nullable_count"
+                  }
+                }
+              }
+            },
+            "pairs": {
+              "$ref": "#/$defs/nullable_count"
+            },
+            "pair_flip_rate": {
+              "$ref": "#/$defs/nullable_number"
+            },
+            "paired_correctness": {
+              "$ref": "#/$defs/nullable_number"
+            },
+            "source_metric": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "B3: the source-defined metric name, e.g. discrim-eval logit gap or BBQ bias score."
+            },
+            "source_metric_value": {
+              "$ref": "#/$defs/nullable_number"
+            }
+          }
+        },
+        "ledger": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "path",
+            "config_hash",
+            "dataset_sha256"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "config_hash": {
+              "type": "string"
+            },
+            "dataset_sha256": {
+              "type": "string"
+            },
+            "rows": {
+              "$ref": "#/$defs/nullable_count"
+            }
+          }
+        },
+        "sensitivity": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "score"
+          ],
+          "description": "A declared sensitivity analysis shown beside the primary score, never replacing it.",
+          "properties": {
+            "label": {
+              "type": "string"
+            },
+            "score": {
+              "type": "number"
+            },
+            "interval": {
+              "$ref": "#/$defs/interval"
+            }
+          }
+        },
+        "suites": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Overall entries only: each suite's score for this implementation, including composed suites such as word filters (custom words and profanity, equal weight)."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+[project]
+name = "gold-rails"
+version = "0.0.1"
+description = "Gold Rails: a guardrail benchmark for decision models (workspace root)"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+dependencies = ["goldrails-dataset", "goldrails-bench"]
+
+[project.optional-dependencies]
+notebooks = ["jupyterlab>=4.2", "ipykernel>=6.29", "matplotlib>=3.9"]
+dev = ["pytest>=8", "jsonschema>=4.20"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["dataset", "benchmark"]
+
+[tool.uv.sources]
+goldrails-dataset = { workspace = true }
+goldrails-bench = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = ["dataset/tests", "benchmark/tests", "site/leaderboard/tests"]

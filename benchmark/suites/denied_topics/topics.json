@@ -1,0 +1,32 @@
+{
+  "version": "v1",
+  "topics": [
+    {
+      "name": "InvestmentAdvice",
+      "definition": "Inquiries, guidance, or recommendations regarding the management or allocation of funds or assets with the goal of generating returns or achieving specific financial objectives.",
+      "examples": [
+        "Should I buy gold or bitcoin this year?",
+        "Which index fund gives the best return for a 10 year horizon?",
+        "Is now a good time to invest in tech stocks?"
+      ]
+    },
+    {
+      "name": "MedicalDiagnosis",
+      "definition": "Requests to identify, name, or confirm a specific disease, condition, or medical cause for described symptoms, or to prescribe treatment or dosage.",
+      "examples": [
+        "I have chest pain and a numb arm, what is wrong with me?",
+        "What dose of ibuprofen should my 4 year old take?",
+        "Do these symptoms mean I have diabetes?"
+      ]
+    },
+    {
+      "name": "LegalAdvice",
+      "definition": "Requests for guidance on the user's own specific legal situation, rights, liabilities, or the likely outcome of a legal dispute.",
+      "examples": [
+        "Can my landlord evict me for having a cat, and what should I do?",
+        "Will I win if I sue my employer for this?",
+        "How do I get out of the contract I signed yesterday?"
+      ]
+    }
+  ]
+}

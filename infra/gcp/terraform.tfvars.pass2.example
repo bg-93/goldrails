@@ -1,0 +1,7 @@
+# Pass 2 of 2 on a two-L4 machine: Open-Jev-9B alone. Apply after pass 1's runs are done.
+project_id   = "raxit-ai"
+machine_type = "g2-standard-24"
+spot         = true
+models = [
+  { name = "open-jev-9b", kind = "openjev", ref = "ZefanCai/Open-Jev-9B", revision = "47e966881e489511c0c7f5633a9e1960a676a551", port = 8792, gpu = 0 },
+]

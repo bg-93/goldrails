@@ -1,0 +1,6 @@
+terraform {
+  backend "gcs" {
+    bucket = "gold-rails-tfstate-YOUR-PROJECT"
+    prefix = "serve/dev"
+  }
+}

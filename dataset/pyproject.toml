@@ -1,0 +1,14 @@
+[project]
+name = "goldrails-dataset"
+version = "0.0.1"
+description = "Gold Rails dataset: record schema, taxonomy, source loaders, build"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+dependencies = ["datasets>=3.0", "pandas>=2.2", "pyarrow>=17", "httpx>=0.27"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["goldrails_dataset*"]

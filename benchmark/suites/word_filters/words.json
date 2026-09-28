@@ -1,0 +1,10 @@
+{
+  "version": "v1",
+  "words": [
+    "project falcon",
+    "acme secret sauce",
+    "internal codename bluebird",
+    "confidential roadmap"
+  ],
+  "matching": "exact phrase, case-insensitive, whole words; Bedrock word filters are exact match"
+}

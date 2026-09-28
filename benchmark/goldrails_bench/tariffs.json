@@ -1,0 +1,150 @@
+{
+  "schema": "goldrails-tariffs/0.1",
+  "currency": "USD",
+  "as_of": "2026-09-23",
+  "rules": [
+    "A price is used only when an entry below gives it. A null price means unknown, and any cost that needs it is reported as null with a reason, never as zero.",
+    "A zero price appears only where the provider lists the unit as free; the leaderboard labels such costs as tariff-zero.",
+    "Every entry names where the price was read and when. Re-check each entry against the source before a test run and change checked_on."
+  ],
+  "entries": [
+    {
+      "id": "typesafe/jev-1.13.0",
+      "provider": "TypeSafe (api.typesafe.ai)",
+      "kind": "per_token",
+      "match": {"models": ["jev-1.13.0"]},
+      "region": null,
+      "prices": {
+        "input_tokens": {"usd_per_million": 0.042},
+        "output_tokens": {"usd_per_million": 0.0, "note": "provider lists output tokens as free"}
+      },
+      "checked_on": "2026-09-21",
+      "source": "https://docs.typesafe.ai/models (repository copy: docs/typesafe-reference/models.md, added 2026-09-21)",
+      "status": "vendor list price, repository copy; not reconciled against a billing statement"
+    },
+    {
+      "id": "aws/bedrock/invoke-guardrail-checks",
+      "provider": "Amazon Bedrock Guardrails, InvokeGuardrailChecks",
+      "kind": "per_text_unit",
+      "match": {"models": ["bedrock-guardrails/invoke-guardrail-checks"]},
+      "region": "us-east-1",
+      "unit": "1 text unit = up to 1,000 characters, per check",
+      "usage_shape": "raw[].usage = {<check>: {textUnits: n}}",
+      "prices": {
+        "contentFilter": {"usd_per_1000_units": 0.07, "note": "usage key confirmed as contentFilter in the first-benchmark ledgers (23 Sep 2026); price unchanged"},
+        "promptAttack": {"usd_per_1000_units": 0.08},
+        "sensitiveInformation": {"usd_per_1000_units": 0.10}
+      },
+      "checked_on": "2026-09-18",
+      "source": "https://aws.amazon.com/bedrock/pricing/ as transcribed in docs/09-bedrock-guardrails-feature-inventory.md section 8 (verified against live AWS docs on 18 September 2026)",
+      "status": "list price, us-east-1; not reconciled against a billing statement"
+    },
+    {
+      "id": "aws/bedrock/apply-guardrail",
+      "provider": "Amazon Bedrock Guardrails, ApplyGuardrail",
+      "kind": "per_text_unit",
+      "match": {"models": ["bedrock-guardrails/apply-guardrail"]},
+      "region": "us-east-1",
+      "unit": "1 text unit = up to 1,000 characters, per policy",
+      "usage_shape": "raw[].usage = {<policy>Units: n, ...}",
+      "prices": {
+        "contentPolicyUnits": {"usd_per_1000_units": 0.15},
+        "topicPolicyUnits": {"usd_per_1000_units": 0.15},
+        "sensitiveInformationPolicyUnits": {"usd_per_1000_units": 0.10},
+        "sensitiveInformationPolicyFreeUnits": {"usd_per_1000_units": 0.0, "note": "regex sensitive-information units are listed as free"},
+        "wordPolicyUnits": {"usd_per_1000_units": 0.0, "note": "word filters are listed as free"},
+        "contextualGroundingPolicyUnits": {"usd_per_1000_units": 0.10},
+        "contentPolicyImageUnits": {"usd_per_1000_units": null, "note": "priced per image ($0.00075 each); unit mapping not confirmed, so unknown here"},
+        "automatedReasoningPolicyUnits": {"usd_per_1000_units": null, "note": "Automated Reasoning is out of scope; not priced here"},
+        "automatedReasoningPolicies": {"usd_per_1000_units": null, "note": "a policy count, not a billable text unit"}
+      },
+      "checked_on": "2026-09-18",
+      "source": "https://aws.amazon.com/bedrock/pricing/ as transcribed in docs/09-bedrock-guardrails-feature-inventory.md section 8 (verified against live AWS docs on 18 September 2026)",
+      "status": "list price, us-east-1; not reconciled against a billing statement"
+    },
+    {
+      "id": "gcp/g2-standard-24/on-demand",
+      "provider": "Google Compute Engine",
+      "kind": "per_hour",
+      "match": {"hardware": ["g2-standard-24", "g2-standard-24/on-demand"]},
+      "region": "us-central1",
+      "usd_per_hour": null,
+      "note": "infra/gcp/README.md gives an approximate figure (about $1.90/hr, 2x L4, plus about $0.02/hr for the 200 GB disk). Approximate is not a dated tariff: read the GCE price list and fill this in before any self-hosted cost is published.",
+      "checked_on": null,
+      "source": "https://cloud.google.com/compute/vm-instance-pricing",
+      "status": "unknown"
+    },
+    {
+      "id": "gcp/g2-standard-24/spot",
+      "provider": "Google Compute Engine",
+      "kind": "per_hour",
+      "match": {"hardware": ["g2-standard-24/spot"]},
+      "region": "us-central1",
+      "usd_per_hour": null,
+      "note": "infra/gcp/README.md gives an approximate figure (about $0.60/hr spot). Spot prices move; record the price in force for the run window.",
+      "checked_on": null,
+      "source": "https://cloud.google.com/spot-vms/pricing",
+      "status": "unknown"
+    },
+    {
+      "id": "gcp/g2-standard-8/on-demand",
+      "provider": "Google Compute Engine",
+      "kind": "per_hour",
+      "match": {"hardware": ["g2-standard-8", "g2-standard-8/on-demand"]},
+      "region": "us-central1",
+      "usd_per_hour": null,
+      "note": "infra/gcp/README.md gives an approximate figure (about $0.85/hr, 1x L4).",
+      "checked_on": null,
+      "source": "https://cloud.google.com/compute/vm-instance-pricing",
+      "status": "unknown"
+    },
+    {
+      "id": "gcp/g2-standard-24/us-east4/on-demand/third-party",
+      "provider": "Google Compute Engine",
+      "kind": "per_hour",
+      "match": {"hardware": ["g2-standard-24/us-east4/on-demand/third-party"]},
+      "region": "us-east4",
+      "usd_per_hour": 1.9943,
+      "note": "Includes both L4 GPUs. us-east4-a is the zone the VM actually ran in on 22 September 2026 (audit logs). Read from a third-party tracker of the GCP catalog because Google's page renders prices client-side and cloudbilling.googleapis.com timed out. Own hardware key so the leaderboard never picks it up for published costs; used by docs/22 for forecasting only. The same source showed $2.0008/hr in us-central1.",
+      "checked_on": "2026-09-23",
+      "source": "https://sparecores.com/server/gcp/g2-standard-24 (observed 2026-09-23T00:32:14Z)",
+      "status": "third-party list price; confirm against https://cloud.google.com/compute/vm-instance-pricing before publishing"
+    },
+    {
+      "id": "gcp/g2-standard-24/us-east4/spot/third-party",
+      "provider": "Google Compute Engine",
+      "kind": "per_hour",
+      "match": {"hardware": ["g2-standard-24/us-east4/spot/third-party"]},
+      "region": "us-east4",
+      "usd_per_hour": 1.064,
+      "note": "Spot prices move; this is one observation. The same source showed $1.2003/hr in us-central1. All six spot requests for g2-standard-24/48 in us-central1 on 22 September 2026 failed with ZONE_RESOURCE_POOL_EXHAUSTED.",
+      "checked_on": "2026-09-23",
+      "source": "https://sparecores.com/server/gcp/g2-standard-24 (observed 2026-09-23T00:32:14Z)",
+      "status": "third-party list price; confirm against https://cloud.google.com/spot-vms/pricing before publishing"
+    },
+    {
+      "id": "gcp/pd-balanced/us-east4/third-party",
+      "provider": "Google Compute Engine",
+      "kind": "per_gb_month",
+      "match": {"hardware": ["pd-balanced/us-east4/third-party"]},
+      "region": "us-east4",
+      "usd_per_gb_month": 0.11,
+      "note": "Zonal balanced persistent disk. A month is 730 hours, so the 200 GB boot disk costs about $0.030/hr while it exists, running or stopped. The same source gives $0.10 in us-central1.",
+      "checked_on": "2026-09-23",
+      "source": "https://gcloud-compute.com/diskpricing.html (page last updated 2026-09-21)",
+      "status": "third-party list price; confirm against https://cloud.google.com/compute/disks-image-pricing before publishing"
+    },
+    {
+      "id": "local/cpu",
+      "provider": "Local CPU for deterministic code (regex baseline)",
+      "kind": "per_hour",
+      "match": {"hardware": ["local-cpu"]},
+      "region": null,
+      "usd_per_hour": null,
+      "note": "The contract prices deterministic code as measured CPU time times a declared rate. No rate is declared yet, so the regex baseline cost is unknown: small, not zero.",
+      "checked_on": null,
+      "source": null,
+      "status": "unknown"
+    }
+  ]
+}
