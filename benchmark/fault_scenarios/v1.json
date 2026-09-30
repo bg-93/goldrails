@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "description": "Deterministic offline fixtures for validating Gold Rails reliability accounting. These are not observations of any provider.",
+  "estimated_cost_per_attempt_usd": 0.001,
+  "scenarios": [
+    {
+      "name": "normal-success",
+      "description": "A normal response succeeds on the first attempt.",
+      "requests": 10,
+      "retry_policy": {"name": "transient-3", "max_retries": 3, "backoff_s": 2.0},
+      "outcomes": [{"kind": "success", "latency_s": 0.2}]
+    },
+    {
+      "name": "throttle-then-recover",
+      "description": "A rate-limited request succeeds after one policy-controlled retry.",
+      "requests": 10,
+      "retry_policy": {"name": "transient-3", "max_retries": 3, "backoff_s": 2.0},
+      "outcomes": [
+        {"kind": "http_429", "latency_s": 0.05},
+        {"kind": "success", "latency_s": 0.2}
+      ]
+    },
+    {
+      "name": "server-errors-then-recover",
+      "description": "HTTP 500 and 503 failures recover on the third attempt.",
+      "requests": 10,
+      "retry_policy": {"name": "transient-3", "max_retries": 3, "backoff_s": 2.0},
+      "outcomes": [
+        {"kind": "http_500", "latency_s": 0.05},
+        {"kind": "http_503", "latency_s": 0.05},
+        {"kind": "success", "latency_s": 0.2}
+      ]
+    },
+    {
+      "name": "timeout-exhausted",
+      "description": "Every attempt times out, consuming the complete retry budget.",
+      "requests": 10,
+      "retry_policy": {"name": "transient-3", "max_retries": 3, "backoff_s": 2.0},
+      "outcomes": [{"kind": "timeout", "latency_s": 1.0}]
+    },
+    {
+      "name": "connection-reset-then-recover",
+      "description": "A transport connection reset succeeds on the second attempt.",
+      "requests": 10,
+      "retry_policy": {"name": "transient-3", "max_retries": 3, "backoff_s": 2.0},
+      "outcomes": [
+        {"kind": "connection_reset", "latency_s": 0.03},
+        {"kind": "success", "latency_s": 0.2}
+      ]
+    },
+    {
+      "name": "slow-success",
+      "description": "The provider returns a usable result which violates a hypothetical one-second latency SLO.",
+      "requests": 10,
+      "retry_policy": {"name": "transient-3", "max_retries": 3, "backoff_s": 2.0},
+      "outcomes": [{"kind": "slow_success", "latency_s": 5.0}]
+    },
+    {
+      "name": "malformed-response",
+      "description": "An unusable response is final because repeating a non-transient adapter failure is wasteful.",
+      "requests": 10,
+      "retry_policy": {"name": "transient-3", "max_retries": 3, "backoff_s": 2.0},
+      "outcomes": [{"kind": "malformed_response", "latency_s": 0.1}]
+    }
+  ]
+}

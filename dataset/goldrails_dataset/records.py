@@ -82,6 +82,10 @@ class Record:
     expected_distribution: Optional[dict] = None
     spans: Optional[list] = None    # F5/F6: [{"start", "end", "label", "source_label"}] character offsets into state.text
     review_status: Optional[str] = None   # one of REVIEW_STATUSES; set by the build when the loader leaves it empty
+    # Present only on derived robustness rows. Canonical rows omit this key when serialised, preserving every
+    # existing dataset hash. Robustness rows live in a separate diagnostic dataset/configuration and never enter the
+    # primary suite aggregate.
+    robustness: Optional[dict] = None
 
     def validate(self) -> None:
         if self.feature not in FEATURES:
@@ -110,6 +114,14 @@ class Record:
                 raise ValueError(f"{self.id}: expected_distribution sums to {total}")
         if self.review_status is not None and self.review_status not in REVIEW_STATUSES:
             raise ValueError(f"{self.id}: bad review_status {self.review_status!r}")
+        if self.robustness is not None:
+            required = {"base_id", "variant_id", "transformation", "transformation_version",
+                        "semantic_equivalence"}
+            missing = sorted(required - set(self.robustness))
+            if missing:
+                raise ValueError(f"{self.id}: robustness metadata lacks {', '.join(missing)}")
+            if self.robustness.get("diagnostic_only") is not True:
+                raise ValueError(f"{self.id}: robustness row must be diagnostic_only")
         if self.provenance.label_basis not in LABEL_BASES:
             raise ValueError(f"{self.id}: bad label_basis {self.provenance.label_basis!r}")
         if self.feature == "F7" and not self.attribute:
@@ -126,7 +138,10 @@ class Record:
                 raise ValueError(f"{self.id}: tool_call carries banned key {key!r}")
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        if self.robustness is None:
+            d.pop("robustness")
+        return d
 
     def to_json(self) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, sort_keys=True)
@@ -141,7 +156,7 @@ class Record:
             split=d.get("split", "test"), visibility=d.get("visibility", "public"),
             group=d.get("group"), attribute=d.get("attribute"),
             expected_distribution=d.get("expected_distribution"), spans=d.get("spans"),
-            review_status=d.get("review_status"),
+            review_status=d.get("review_status"), robustness=d.get("robustness"),
         )
         r.validate()
         return r

@@ -62,6 +62,10 @@ def config_hash(client, qs: dict) -> str:
              "base_url": getattr(getattr(client, "client", None), "base_url", None) and str(client.client.base_url),
              "questions": qs["questions"],
              "decision": qs.get("decision")}   # the decision rule is part of the arm: changing it is a new configuration
+    if qs.get("robustness") is not None:
+        ident["robustness"] = qs["robustness"]
+    if qs.get("input_serialization") is not None:
+        ident["input_serialization"] = qs["input_serialization"]
     if getattr(client, "adapter", None):
         ident["adapter"] = {"name": client.adapter["name"], "version": client.adapter["version"]}
     return hashlib.sha256(json.dumps(ident, sort_keys=True, default=str).encode()).hexdigest()[:16]
@@ -114,7 +118,10 @@ def _one(client: SystemOneClient, qname: str, qs: dict, r, max_questions: int | 
     """One row through one question set. With ``max_questions`` the questions go in chunks of that size to the same
     system, answers are joined, latency is the sum over each chunk's final attempt, and the row is ok only if every
     chunk was. Each chunk is attempted under ``policy``; every attempt is kept in ``attempts``."""
-    state = state_of(r)
+    serialization = qs.get("input_serialization")
+    # Existing tests and third-party adapters sometimes monkeypatch the old one-argument helper. Preserve that
+    # compatibility on canonical arms; robustness serialization always uses the explicit two-argument path.
+    state = state_of(r) if serialization is None else state_of(r, serialization)
     items = list(qs["questions"].items())
     n = max_questions or len(items) or 1
     chunks = [dict(items[i:i + n]) for i in range(0, len(items), n)] or [{}]
@@ -138,6 +145,20 @@ def _one(client: SystemOneClient, qname: str, qs: dict, r, max_questions: int | 
             "group": getattr(r, "group", None),
             "expected_types": sorted({s["label"] for s in (getattr(r, "spans", None) or [])}) if getattr(r, "spans", None) is not None else None,
             "raw": [c.raw for c in calls]}
+    row_robustness = getattr(r, "robustness", None)
+    question_robustness = qs.get("robustness")
+    if row_robustness or question_robustness:
+        parts = [x for x in (question_robustness, row_robustness) if x]
+        equivalence = {x.get("semantic_equivalence") for x in parts}
+        rec["robustness"] = {
+            "diagnostic_only": True,
+            "base_id": (row_robustness or {}).get("base_id", r.id),
+            "base_question_set": (question_robustness or {}).get("base_question_set", qname),
+            "variant_id": "+".join(x["variant_id"] for x in parts),
+            "parts": parts,
+            "semantic_equivalence": ("requires_review" if "requires_review" in equivalence
+                                     else "reviewed" if "reviewed" in equivalence else "mechanical"),
+        }
     if freeze and split_of_row(r) == "test":
         rec["freeze"] = freeze
     return rec
@@ -173,6 +194,11 @@ class Ledger:
                "adapter": adapter_of(client), "retry_policy": policy.identity(),
                "load": load,   # declared {concurrency, batch_size, client_location}: what latency and cost are measured under
                "dataset": dataset, "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        if qs.get("robustness") is not None:
+            arm["robustness"] = qs["robustness"]
+            arm["diagnostic_only"] = True
+        if qs.get("input_serialization") is not None:
+            arm["input_serialization"] = qs["input_serialization"]
         if freeze:
             arm["freeze"] = freeze
         with self.lock:

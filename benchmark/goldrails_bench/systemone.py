@@ -105,8 +105,13 @@ def build_question(q: dict):
     raise ValueError(f"unknown question type {t!r}")
 
 
-def state_of(record) -> dict:
-    """The state a decision model sees: role, text, and prior turns. Never the label."""
+def state_of(record, serialization: dict | None = None) -> dict:
+    """The state a decision model sees: role, text, and prior turns. Never the label.
+
+    ``serialization`` is used only by frozen robustness arms. It can rename JSON fields or move the existing
+    context turns into ``text`` without changing their content. The exact specification is included in the arm's
+    config hash and ledger snapshot; the canonical path remains byte-for-byte compatible with adapter v1.
+    """
     s = {"role": record.state.role, "text": record.state.text}
     if record.state.context:
         s["context"] = record.state.context
@@ -116,4 +121,24 @@ def state_of(record) -> dict:
         s["source"] = record.state.source
     if record.state.query:           # F6: the query the reply must answer
         s["query"] = record.state.query
+    serialization = serialization or {}
+    mode = serialization.get("mode", "canonical")
+    if mode == "flatten_context":
+        turns = list(s.pop("context", []))
+        if turns:
+            rendered = [f"[{t['role']}] {t['text']}" for t in turns]
+            rendered.append(f"[{s['role']}] {s['text']}")
+            s["text"] = "\n".join(rendered)
+    elif mode != "canonical":
+        raise ValueError(f"unknown state serialization mode {mode!r}")
+    renamed = serialization.get("rename_fields") or {}
+    if len(set(renamed.values())) != len(renamed):
+        raise ValueError("state field renames must have distinct destinations")
+    for old, new in renamed.items():
+        if old not in STATE_FIELDS or not isinstance(new, str) or not new:
+            raise ValueError(f"invalid state field rename {old!r} -> {new!r}")
+        if old in s:
+            if new in s and new != old:
+                raise ValueError(f"state field rename collides with existing field {new!r}")
+            s[new] = s.pop(old)
     return s

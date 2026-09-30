@@ -2,12 +2,14 @@
 NB ?= benchmark/notebooks/04_cloud_pass_pilot.ipynb
 LEDGER ?= benchmark/results/pilot-cloud-pass.jsonl
 
-.PHONY: help test build up run pause down status report tunnel tunnel-down infra-init infra-plan
+.PHONY: help test build reliability-sim up run pause down status report tunnel tunnel-down infra-init infra-plan
 help:  ## this list
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*##' '{printf "  make %-12s %s\n", $$1, $$2}'
 
 test:  ## unit tests
 	uv run pytest -q
+reliability-sim:  ## deterministic offline retry/failure simulation (no API keys)
+	uv run python benchmark/runs/reliability_simulation.py
 build:  ## rebuild the pilot sample from the public sources
 	uv run python -m goldrails_dataset.build --out dataset/samples/pilot --per-cell 25 --seed 7
 
