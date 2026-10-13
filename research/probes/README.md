@@ -11,6 +11,14 @@ This is a diagnostic experiment on one use case, separate from the benchmark's f
 - Related rows stayed grouped. Probe features, regularization, and decision thresholds were selected on validation. Test was opened after those choices were frozen. Both native baselines use the model's own trained adapter and decision head, then the maximum of nine policy-question scores.
 - The Strands probe selected an averaged answer-token feature from decoder block 11; the Kev probe selected its averaged `<decide>` token from block 15. Both selected linear readouts use logistic regression. Their token positions and native prompt renderers are model-specific.
 
+## How probe settings were selected
+
+Both runs sampled seven zero-based decoder blocks: Strands `[0, 3, 7, 11, 15, 19, 23]` and Kev `[0, 5, 10, 15, 20, 25, 31]`. At each block, the notebook averaged a vector across the nine policy-question branches. It tried the answer-position vector (`answer_mean`) and the true-option minus false-option vector (`option_delta`). The fitted candidates were a class-mean midpoint/direction probe and logistic regression with training-only standardization and `C` in `{0.001, 0.01, 0.1}`. Model weights and native heads stayed frozen.
+
+For each probe type, the winner was selected by validation AUROC, then validation balanced accuracy, then shallower layer. Its decision threshold was chosen from validation score quantiles plus the default and all-allow candidate to maximize validation balanced accuracy; a tie favored the threshold nearest the default. The native score and a character n-gram baseline had their own validation-selected thresholds. All settings were saved in `frozen_selection.json` before test activations were extracted. The 29-row validation set is small, and several configurations tied at AUROC 1.0; the layer-sweep figures are selection diagnostics, not independent test evidence.
+
+The PCA plots use only the selected logistic-regression feature vectors. PCA axes were fitted on training vectors and then used to project test vectors, which were colored by reference label for display. PCA was not used to choose a layer, train the probe, or make block/allow decisions. Two-dimensional overlap does not measure high-dimensional linear decodability.
+
 | Model / readout | Balanced accuracy (95% group-bootstrap interval) | Block cases caught | Safe rows blocked |
 |---|---:|---:|---:|
 | Strands native, fixed 0.5 | 85.3% (82.5–87.9%) | 244/256 | 70/284 |
@@ -32,7 +40,7 @@ The runs do not test new policy definitions, the other guardrail jobs, the priva
 
 - `notebooks/` contains source copies with execution outputs removed. Cell source is preserved from the supplied notebooks. Both default to `SMOKE=True`; set `SMOKE=False` in a fresh Colab runtime for a full run.
 - `inputs/` contains the identical row manifests and frozen policy questions from the two supplied runs. Expected labels never enter the model prompt.
-- `../../site/public/research/linear-probe/` contains the Strands aggregate chart, run manifest, frozen selection, metrics, and paired interval; `kev-4b/` contains the Kev equivalents. The website also serves clean notebook downloads.
+- `../../site/public/research/linear-probe/` contains the Strands layer sweep, train-fitted PCA, held-out chart, validation search table, run manifest, frozen selection, metrics, and paired interval; `kev-4b/` contains the Kev equivalents. The website also serves clean notebook downloads.
 - The run manifests pin model, base, code, and dataset revisions. The activation caches and raw per-row scores are intentionally not committed; the notebooks regenerate them when run with the pinned inputs.
 
 See the [benchmark reproduction guide](../../REPRODUCE.md) for the separate multi-suite evaluation.
