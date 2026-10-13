@@ -32,7 +32,10 @@ export function faqItems(board: Board): QA[] {
           format. The other models get the questions through our adapters. We disclose this home advantage and do not remove it,
           because any other format would favour a different system. Our rules also say that a reworded question set must first be
           checked on at least three non-Jev models. For the three sets we reworded (denied topics, prompt attacks and personal
-          data), that check did not run before the results were frozen. We are running it now and will publish the result.
+          data), that check did not run before the results were frozen. We ran it afterwards, under a plan we published first, with
+          Perplexity, OpenAI and Clef beside Jev. It passed. Compared with the old wording, the new wording left Jev 1.2 points of balanced
+          accuracy worse off than the other three on average for prompt attacks, and 0.6 points worse off for denied topics. The
+          check fails only if Jev gains more than 2.0 points over them.
           {qf ? ` ${oneLine(sys[qf.system], qf.system)} finishes in tier ${qf.tier} of ${qf.tiers} overall.` : ""}
         </p>
       ),

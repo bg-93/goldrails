@@ -34,7 +34,12 @@ export default function Changelog() {
                 Our evaluation contract says a reworded question set must be checked on at least three non-Jev models before the
                 results are frozen. Three sets were reworded for this release (denied topics, prompt attacks and personal data), and
                 that check did not run. A reviewer pointed this out. The rewording followed the owner&apos;s rulings, not the results, and no
-                score changes. We are running the check now and will publish the result here.
+                score changes. We have since run the check with Perplexity, OpenAI and Clef beside Jev, under a plan we published
+                first. It passed. The new wording did not help Jev more than the others. Compared with the old wording, it left Jev 1.2
+                points of balanced accuracy worse off than the other three on average for prompt attacks, and 0.6 points worse off
+                for denied topics. The check fails only if Jev gains more than 2.0 points over them. The 1.0.0 results stand. The{" "}
+                <a href={`${REPO_URL}/blob/main/docs/benchmark/30-question-wording-check-plan.md`}>plan</a> and the{" "}
+                <a href={`${REPO_URL}/blob/main/benchmark/results/wording-check/summary.json`}>results</a> are on GitHub.
               </li>
               <li>
                 A new <Link href="/research">Research</Link> page holds studies that go beyond the leaderboard, starting with a linear-probe
