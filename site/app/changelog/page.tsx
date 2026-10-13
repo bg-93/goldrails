@@ -22,6 +22,27 @@ export default function Changelog() {
       <h1 className="m-0 text-[clamp(2rem,5vw,3rem)] font-semibold leading-[1.05] tracking-[-0.03em]">Changelog</h1>
       </header>
       <ol className="m-0 list-none border-t border-line p-0">
+        <li className="grid gap-4 border-b border-line py-8 sm:grid-cols-[10rem_minmax(0,1fr)]">
+          <div className="flex flex-col gap-1">
+            <span className="text-[15px] text-fg">Note</span>
+            <time dateTime="2026-10-14" className="text-[13px] text-muted">14 October 2026</time>
+          </div>
+          <div className="flex flex-col gap-4">
+            <h2 className="m-0 text-[20px] font-semibold tracking-[-0.01em]">A missed check, and a research page</h2>
+            <ul className="m-0 flex flex-col gap-2 pl-5 text-[15px] leading-relaxed text-fg-2 marker:text-muted">
+              <li>
+                Our evaluation contract says a reworded question set must be checked on at least three non-Jev models before the
+                results are frozen. Three sets were reworded for this release (denied topics, prompt attacks and personal data), and
+                that check did not run. A reviewer pointed this out. The rewording followed the owner&apos;s rulings, not the results, and no
+                score changes. We are running the check now and will publish the result here.
+              </li>
+              <li>
+                A new <Link href="/research">Research</Link> page holds studies that go beyond the leaderboard, starting with a linear-probe
+                study under review and Red Hat&apos;s independent benchmark.
+              </li>
+            </ul>
+          </div>
+        </li>
         <li className="grid gap-4 py-8 sm:grid-cols-[10rem_minmax(0,1fr)]">
           <div className="flex flex-col gap-1">
             <span className="num text-[15px] text-fg">{version}</span>

@@ -46,5 +46,9 @@ wording, so those sets are unchanged. The contract asks for every revision to be
 non-Jev models within the revision budget. That check has not run yet. It needs model calls, and it has to pass
 before the freeze.
 
+Status, 14 October 2026: the check did not run before the edition 2 freeze, and the 1.0.0 results used these sets
+without it. A reviewer raised the gap. It is disclosed on the site (FAQ and changelog), and the check is being run after
+the freeze. Its result will be logged here.
+
 The Bedrock topics guardrail for edition 2 is built from the same `topics-e2.json`: the configuration is
 `benchmark/suites/denied_topics/bedrock-guardrail-e2.json`, and the owner creates the new guardrail version.

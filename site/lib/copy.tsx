@@ -30,7 +30,9 @@ export function faqItems(board: Board): QA[] {
         <p className="m-0">
           It may. Every decision model gets the same yes/no questions in the format that Jev&apos;s API uses. Jev was trained on that
           format. The other models get the questions through our adapters. We disclose this home advantage and do not remove it,
-          because any other format would favour a different system.
+          because any other format would favour a different system. Our rules also say that a reworded question set must first be
+          checked on at least three non-Jev models. For the three sets we reworded (denied topics, prompt attacks and personal
+          data), that check did not run before the results were frozen. We are running it now and will publish the result.
           {qf ? ` ${oneLine(sys[qf.system], qf.system)} finishes in tier ${qf.tier} of ${qf.tiers} overall.` : ""}
         </p>
       ),
