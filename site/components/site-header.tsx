@@ -40,6 +40,7 @@ export function SiteHeader() {
         <nav aria-label="Main" className="ml-auto flex min-w-0 items-center">
           <ul className="flex items-center gap-0.5 overflow-x-auto text-[14px] [scrollbar-width:none]">
             <li><NavLink href="/">Results</NavLink></li>
+            <li><NavLink href="/research/linear-probe">Research</NavLink></li>
             <li><NavLink href="/reproduce">Reproduce</NavLink></li>
             <li><NavLink href="/data">Data</NavLink></li>
             <li className="hidden sm:block">
