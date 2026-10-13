@@ -101,7 +101,7 @@ DEFAULT_CONTRACT = {
 }
 
 FEATURE_SUITE = {v["feature"]: k for k, v in DEFAULT_CONTRACT["suites"].items()}
-SELF_HOSTED_KINDS = ("kev", "laya", "openjev", "open-jev")
+SELF_HOSTED_KINDS = ("kev", "laya", "openjev", "open-jev", "strands")
 
 
 # --- small helpers ---------------------------------------------------------------------------------------------------
@@ -246,7 +246,7 @@ class DatasetIndex:
             if d.is_dir():
                 for f in sorted(d.glob("*.jsonl")):
                     sha = _sha256_file(f)
-                    for line in f.read_text(encoding="utf-8").splitlines():
+                    for line in f.read_text(encoding="utf-8").split("\n"):
                         if line.strip():
                             x = json.loads(line)
                             out[x["id"]] = {"group": x.get("group"), "split": x.get("split"), "file_sha": sha}
@@ -686,6 +686,9 @@ def cost_block(arm: Arm, report_ids: dict[str, set], arm_meta: dict | None, tari
     for st, ids in sorted(report_ids.items()):
         costs, zeros, why = [], Counter(), Counter()
         for i in sorted(ids):
+            if i not in recs:          # a frozen-list row the arm never logged (scored as a failure) has no usage
+                why["row never logged"] += 1
+                continue
             usd, reason, z = record_cost(recs[i], entry)
             if usd is None:
                 why[reason] += 1

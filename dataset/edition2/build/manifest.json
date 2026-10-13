@@ -1,0 +1,111 @@
+{
+  "protocol": "gold-rails::edition-2-candidate",
+  "command": "uv run python -m goldrails_dataset.edition2",
+  "status": "candidate: disputes resolved under the owner rulings of 3 October 2026 are applied; the rest await the owner; nothing here is frozen or signed",
+  "files": [
+    {
+      "path": "F1.dev.jsonl",
+      "feature": "F1",
+      "split": "dev",
+      "n": 354,
+      "sha256": "cf3ee0496361a877b8bbff2401c86ef293b891553b594f86e69eeba6c2182635"
+    },
+    {
+      "path": "F2.dev.jsonl",
+      "feature": "F2",
+      "split": "dev",
+      "n": 720,
+      "sha256": "0ed3daaa4b72770eaf1eb355b649dc75eb12354cd8f4bf87e1535249dd3d660e"
+    },
+    {
+      "path": "F3.dev.jsonl",
+      "feature": "F3",
+      "split": "dev",
+      "n": 131,
+      "sha256": "b43fb258a6b8aeb48e805db16fc71b7a002db9e186c0bb72c0d86a1b3ad1d02b"
+    },
+    {
+      "path": "F4.dev.jsonl",
+      "feature": "F4",
+      "split": "dev",
+      "n": 164,
+      "sha256": "771ea1e1b451ff99c873eac134f4bd204b1e151fa4fc956561b6de2e0fc192e7"
+    },
+    {
+      "path": "F5.dev.jsonl",
+      "feature": "F5",
+      "split": "dev",
+      "n": 120,
+      "sha256": "761cd4cd859022c7dc614cce7cd2b0889edaa2800030f9cbba9c07898c513ba3"
+    },
+    {
+      "path": "F6.dev.jsonl",
+      "feature": "F6",
+      "split": "dev",
+      "n": 124,
+      "sha256": "2583ce3ecd980a15908212bbb01244fd22f362e62b9d09110ce6c40a60e1db6d"
+    },
+    {
+      "path": "F1.test.jsonl",
+      "feature": "F1",
+      "split": "test",
+      "n": 2091,
+      "sha256": "03594cccf35b988af86fb1d5339f0893a4cf91d2e71b8bc7e0aec440a5fd328d"
+    },
+    {
+      "path": "F2.test.jsonl",
+      "feature": "F2",
+      "split": "test",
+      "n": 3173,
+      "sha256": "a76af88de126202fb32ce577b1ec7cf1feb3de5ce417a4ecbf9840b911d87041"
+    },
+    {
+      "path": "F3.test.jsonl",
+      "feature": "F3",
+      "split": "test",
+      "n": 601,
+      "sha256": "cb56eb366eeb92f7d36814d86d5703a302801a553921187e02fe961c5ab33729"
+    },
+    {
+      "path": "F4.test.jsonl",
+      "feature": "F4",
+      "split": "test",
+      "n": 685,
+      "sha256": "f48e6685287cfe14573348696dcecd9c05496455ddbb7739f77e379df85321cb"
+    },
+    {
+      "path": "F5.test.jsonl",
+      "feature": "F5",
+      "split": "test",
+      "n": 600,
+      "sha256": "ab4f4bfe410207706ef8218ee462c715ea322f1df1db38a686cf796236cafb21"
+    },
+    {
+      "path": "F6.test.jsonl",
+      "feature": "F6",
+      "split": "test",
+      "n": 556,
+      "sha256": "62772c7048421662fb228597b49bb46d341df4a52717e58ec54e45603f22f690"
+    }
+  ],
+  "private_slice": {
+    "rows": 2269,
+    "where": "build/private/ (git-ignored, never published)"
+  },
+  "needs_owner_review": {
+    "public": 0,
+    "private": 0,
+    "file": "needs-owner-review.jsonl"
+  },
+  "resolved_by_ruling": {
+    "public": 83,
+    "private": 13,
+    "file": "<suite>/resolutions.jsonl"
+  },
+  "dropped": {
+    "public": 11,
+    "private": 55,
+    "file": "dropped.jsonl",
+    "rule": "cross-suite duplicate text in another split (test, then private, kept); a test or private row overlapping an examined, ledger or v1 row"
+  }
+}

@@ -1,0 +1,238 @@
+{
+ "generated": "2026-10-05",
+ "command": "uv run python -m goldrails_dataset.model_overlap report",
+ "method": "exact match after casefolding and collapsing whitespace, on every text field of each edition 2 row (min 20 characters), against the whole upstream split each model's published recipe draws from. A match means the row's text is in that split, not that it was in the model's actual sample, so counts are an upper bound.",
+ "sources": {
+  "strands-decider-2b": "github.com/strands-labs/strands-decider data/sources.md and src/strands_decider/data/recipes.py (civil_comments train, 6,000 sampled with seed 0; PubMedQA pqa_labeled, all 1,000; measuring-hate-speech held out, not trained)",
+  "pplx-decider-v1-27b": "huggingface.co/perplexity-ai/pplx-decider-v1-27b source/src/autojev/data.py at 5117a6c (civil_comments train 8,000 and validation for development; Aegis 2.0 train 6,000 and validation for development; PubMedQA quota 0, evaluation only)"
+ },
+ "policy": "test and unpublished rows whose text is in pplx-decider-v1-27b's training or development splits are excluded from edition 2 (EXCLUDED.jsonl, reason 'text in pplx-decider-v1-27b training or development data'); dev rows stay and are listed here",
+ "excluded_rows": {
+  "public": 416,
+  "unpublished": 148
+ },
+ "checks": [
+  {
+   "model": "strands-decider-2b",
+   "upstream": "google/civil_comments",
+   "config": null,
+   "split": "train",
+   "revision": null,
+   "role": "train (6,000 sampled)",
+   "upstream_rows_scanned": 1804874,
+   "error": null,
+   "test_and_unpublished_matches_excluded": false,
+   "matched_by_feature_split_source": [],
+   "matched_test_rows": 0,
+   "matched_dev_rows": 0,
+   "matched_unpublished_rows": 0,
+   "matched_public_row_ids": []
+  },
+  {
+   "model": "strands-decider-2b",
+   "upstream": "qiaojin/PubMedQA",
+   "config": "pqa_labeled",
+   "split": "train",
+   "revision": null,
+   "role": "train (all 1,000)",
+   "upstream_rows_scanned": 1000,
+   "error": null,
+   "test_and_unpublished_matches_excluded": false,
+   "matched_by_feature_split_source": [],
+   "matched_test_rows": 0,
+   "matched_dev_rows": 0,
+   "matched_unpublished_rows": 0,
+   "matched_public_row_ids": []
+  },
+  {
+   "model": "pplx-decider-v1-27b",
+   "upstream": "google/civil_comments",
+   "config": null,
+   "split": "train",
+   "revision": "f2970eb3a55777454c94069077cc8d9b5866312d",
+   "role": "train (8,000 sampled)",
+   "upstream_rows_scanned": 1804874,
+   "error": null,
+   "test_and_unpublished_matches_excluded": false,
+   "matched_by_feature_split_source": [],
+   "matched_test_rows": 0,
+   "matched_dev_rows": 0,
+   "matched_unpublished_rows": 0,
+   "matched_public_row_ids": []
+  },
+  {
+   "model": "pplx-decider-v1-27b",
+   "upstream": "google/civil_comments",
+   "config": null,
+   "split": "validation",
+   "revision": "f2970eb3a55777454c94069077cc8d9b5866312d",
+   "role": "development",
+   "upstream_rows_scanned": 97320,
+   "error": null,
+   "test_and_unpublished_matches_excluded": true,
+   "matched_by_feature_split_source": [
+    {
+     "feature": "F4",
+     "split": "dev",
+     "source": "e2_profanity_civil_comments",
+     "rows": 19
+    }
+   ],
+   "matched_test_rows": 0,
+   "matched_dev_rows": 19,
+   "matched_unpublished_rows": 0,
+   "matched_public_row_ids": [
+    "f4-e2_profanity_civil_comments-0d40b4063b",
+    "f4-e2_profanity_civil_comments-13c9b399d4",
+    "f4-e2_profanity_civil_comments-13d3ba67de",
+    "f4-e2_profanity_civil_comments-205aefb619",
+    "f4-e2_profanity_civil_comments-32183fd340",
+    "f4-e2_profanity_civil_comments-350470e675",
+    "f4-e2_profanity_civil_comments-3a6e2ce331",
+    "f4-e2_profanity_civil_comments-55bc1dc3b0",
+    "f4-e2_profanity_civil_comments-5f27bf34ea",
+    "f4-e2_profanity_civil_comments-65f948dc52",
+    "f4-e2_profanity_civil_comments-7333ed3fe0",
+    "f4-e2_profanity_civil_comments-7ceaf5e9c9",
+    "f4-e2_profanity_civil_comments-85eb0fc9b7",
+    "f4-e2_profanity_civil_comments-8865b6093b",
+    "f4-e2_profanity_civil_comments-a7e8b8c83d",
+    "f4-e2_profanity_civil_comments-ba65c7aec1",
+    "f4-e2_profanity_civil_comments-c56ee6a818",
+    "f4-e2_profanity_civil_comments-da0ddbfdaa",
+    "f4-e2_profanity_civil_comments-df291af7d3"
+   ]
+  },
+  {
+   "model": "pplx-decider-v1-27b",
+   "upstream": "nvidia/Aegis-AI-Content-Safety-Dataset-2.0",
+   "config": null,
+   "split": "train",
+   "revision": "d86bb8bedff51d25ac834ab7838f1cc61acb7a2c",
+   "role": "train (6,000 sampled)",
+   "upstream_rows_scanned": 30007,
+   "error": null,
+   "test_and_unpublished_matches_excluded": true,
+   "matched_by_feature_split_source": [
+    {
+     "feature": "F1",
+     "split": "dev",
+     "source": "aegis2",
+     "rows": 1
+    },
+    {
+     "feature": "F2",
+     "split": "dev",
+     "source": "itw_jailbreak_prompts",
+     "rows": 49
+    },
+    {
+     "feature": "F2",
+     "split": "dev",
+     "source": "jackhhao_jailbreak",
+     "rows": 11
+    }
+   ],
+   "matched_test_rows": 0,
+   "matched_dev_rows": 61,
+   "matched_unpublished_rows": 0,
+   "matched_public_row_ids": [
+    "f1-aegis2-4550acaea9",
+    "f2-itw_jailbreak_prompts-014afaf0ce",
+    "f2-itw_jailbreak_prompts-0c899fca09",
+    "f2-itw_jailbreak_prompts-0cb4e297bd",
+    "f2-itw_jailbreak_prompts-10031f5ad0",
+    "f2-itw_jailbreak_prompts-1254bc1a07",
+    "f2-itw_jailbreak_prompts-29cc0f7174",
+    "f2-itw_jailbreak_prompts-2cd4bd00b2",
+    "f2-itw_jailbreak_prompts-32c27dc5f9",
+    "f2-itw_jailbreak_prompts-3407136604",
+    "f2-itw_jailbreak_prompts-34b83cb55c",
+    "f2-itw_jailbreak_prompts-36872248e9",
+    "f2-itw_jailbreak_prompts-3c5ef850c7",
+    "f2-itw_jailbreak_prompts-407ad8dc1e",
+    "f2-itw_jailbreak_prompts-41b1ea075f",
+    "f2-itw_jailbreak_prompts-517680999a",
+    "f2-itw_jailbreak_prompts-54de89aab6",
+    "f2-itw_jailbreak_prompts-59942e9cc9",
+    "f2-itw_jailbreak_prompts-5f66e34834",
+    "f2-itw_jailbreak_prompts-645065e7e5",
+    "f2-itw_jailbreak_prompts-67b6db7c74",
+    "f2-itw_jailbreak_prompts-67e4c69e85",
+    "f2-itw_jailbreak_prompts-68b640a5e7",
+    "f2-itw_jailbreak_prompts-6e7ad7f9b9",
+    "f2-itw_jailbreak_prompts-72ac0ef3f5",
+    "f2-itw_jailbreak_prompts-85d00d601c",
+    "f2-itw_jailbreak_prompts-86fba5a924",
+    "f2-itw_jailbreak_prompts-8c97b81c7c",
+    "f2-itw_jailbreak_prompts-8f6e4dbf8d",
+    "f2-itw_jailbreak_prompts-9066ad4d41",
+    "f2-itw_jailbreak_prompts-94c42b3a82",
+    "f2-itw_jailbreak_prompts-9c43724569",
+    "f2-itw_jailbreak_prompts-9f1b80bd74",
+    "f2-itw_jailbreak_prompts-a2a5fb66a9",
+    "f2-itw_jailbreak_prompts-a860a442da",
+    "f2-itw_jailbreak_prompts-b07215d3f8",
+    "f2-itw_jailbreak_prompts-bbd2775a75",
+    "f2-itw_jailbreak_prompts-be157f80dc",
+    "f2-itw_jailbreak_prompts-c51961de16",
+    "f2-itw_jailbreak_prompts-c7d5081ebd",
+    "f2-itw_jailbreak_prompts-d4b4064de5",
+    "f2-itw_jailbreak_prompts-d6a8ec27de",
+    "f2-itw_jailbreak_prompts-d95909007b",
+    "f2-itw_jailbreak_prompts-dac0eca986",
+    "f2-itw_jailbreak_prompts-df9368f970",
+    "f2-itw_jailbreak_prompts-ec7786cb3f",
+    "f2-itw_jailbreak_prompts-ed5862ba49",
+    "f2-itw_jailbreak_prompts-f32735f0dd",
+    "f2-itw_jailbreak_prompts-fce776d5f0",
+    "f2-itw_jailbreak_prompts-fe674782e6",
+    "f2-jackhhao_jailbreak-0694f22bde",
+    "f2-jackhhao_jailbreak-1e15ad950d",
+    "f2-jackhhao_jailbreak-2b4c1d0db2",
+    "f2-jackhhao_jailbreak-2f1cd08e9b",
+    "f2-jackhhao_jailbreak-3e5d3c1b26",
+    "f2-jackhhao_jailbreak-557e8f50f0",
+    "f2-jackhhao_jailbreak-5b72a232c3",
+    "f2-jackhhao_jailbreak-7e4fdb20dd",
+    "f2-jackhhao_jailbreak-ada5d8b10c",
+    "f2-jackhhao_jailbreak-e99198405d",
+    "f2-jackhhao_jailbreak-f3a20139e9"
+   ]
+  },
+  {
+   "model": "pplx-decider-v1-27b",
+   "upstream": "nvidia/Aegis-AI-Content-Safety-Dataset-2.0",
+   "config": null,
+   "split": "validation",
+   "revision": "d86bb8bedff51d25ac834ab7838f1cc61acb7a2c",
+   "role": "development",
+   "upstream_rows_scanned": 1445,
+   "error": null,
+   "test_and_unpublished_matches_excluded": true,
+   "matched_by_feature_split_source": [
+    {
+     "feature": "F2",
+     "split": "dev",
+     "source": "itw_jailbreak_prompts",
+     "rows": 2
+    }
+   ],
+   "matched_test_rows": 0,
+   "matched_dev_rows": 2,
+   "matched_unpublished_rows": 0,
+   "matched_public_row_ids": [
+    "f2-itw_jailbreak_prompts-1ab227bcf4",
+    "f2-itw_jailbreak_prompts-ddddeca5b5"
+   ]
+  }
+ ],
+ "not_checkable": [
+  {
+   "model": "gpt-6-luna",
+   "checked": "2026-10-07",
+   "reason": "OpenAI publishes no training or tuning recipe for gpt-6-luna, so there is no upstream split to scan",
+   "known_vendor_data": "the content suite's openai_moderation rows (OpenAI's moderation evaluation set: 208 public test rows and 36 unpublished) are OpenAI-published; they are kept and reported with and without (content view excluding_openai_owned), not excluded"
+  }
+ ]
+}

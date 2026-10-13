@@ -1,9 +1,8 @@
-# Jev-powered guardrails: research docs
-
-Research captured on 18 September 2026, three days after TypeSafe AI released Jev. Everything here is desk research plus design thinking. Nothing has been built or benchmarked yet.
+# docs
 
 | File | What it holds |
 |---|---|
+<<<<<<< HEAD
 | [01-jev-primer.md](01-jev-primer.md) | What Jev is, the three question types, pricing, limits, known weaknesses |
 | [02-community-research.md](02-community-research.md) | What people said about Jev in its first 72 hours (HN, Reddit, X, YouTube) |
 | [03-cybersecurity-decision-map.md](03-cybersecurity-decision-map.md) | Where in cybersecurity a decision model fits, rated |
@@ -33,8 +32,27 @@ Research captured on 18 September 2026, three days after TypeSafe AI released Je
 | [transcripts/](transcripts/) | Verbatim transcripts of the three practitioner videos cited in 11 |
 | [prior-art/](prior-art/README.md) | OWASP skills checklist and the community guardrail repos' questions and cases |
 | [typesafe-reference/](typesafe-reference/README.md) | Local Markdown copies of the live TypeSafe docs: API, models, SDKs, guardrails cookbook, jaggedness |
+=======
+| [benchmark/26-edition-2-plan.md](benchmark/26-edition-2-plan.md) | The plan the benchmark follows: fixed decision rule, dataset build, integrity checks, onboarding a model |
+| [benchmark/27-evaluation-contract-v2.md](benchmark/27-evaluation-contract-v2.md) | The evaluation contract in prose; `benchmark/contracts/v2.0.json` is the version the scorer reads |
+| [benchmark/28-new-decision-models-research.md](benchmark/28-new-decision-models-research.md) | Research on the hosted decision models added to the roster, with the price pages the tariffs cite |
+| [benchmark/29-owner-rulings-2026-10-03.md](benchmark/29-owner-rulings-2026-10-03.md) | The decisions that settled open questions in the contract and the dataset |
+| [benchmark/30-content-sample-labelling.md](benchmark/30-content-sample-labelling.md) | How the content suite's second-label sample is drawn and labelled |
+| [benchmark/RELEASE-HANDOVER-2026-10-07.md](benchmark/RELEASE-HANDOVER-2026-10-07.md) | Release-day steps and where the results are kept |
+>>>>>>> 38b70dc2991e52b62b1e05def887e268e5ac4a7c
 
-Read 01, 05, 06, 07 in that order if you only have ten minutes.
+## Vendor docs
 
+Copies of documentation published by the benchmarked vendors. `goldrails_dataset.vendor_overlap` scans them for
+dataset rows a vendor printed (`dataset/edition2/VENDOR-OVERLAP.md`), and `benchmark/goldrails_bench/tariffs.json`
+cites some of them as its price source. Their paths are part of those records, so they stay where they are.
 
-Terminology: a *question set* is the fixed set of typed questions sent to a decision model with each row (TypeSafe's cookbook calls this a battery; we do not).
+- TypeSafe (Jev): `reference/typesafe/`, `typesafe-reference/models.md`, `research/early-2026-09-18/01-jev-primer.md`,
+  `research/early-2026-09-18/08-sources.md`
+- AWS (Bedrock Guardrails): `09-bedrock-guardrails-feature-inventory.md` (a pointer),
+  `research/early-2026-09-18/05-bedrock-guardrails-mapping.md`,
+  `research/early-2026-09-18/09-bedrock-guardrails-feature-inventory.md`, `archive/2026-09-28-bedrock-feature-map/`,
+  and `../research_notes/Profanity and denied topic references/bedrock_equivalence.md`
+- OpenAI (gpt-6-luna): `reference/openai/decisions-api.md`
+
+Terminology: a *question set* is the fixed set of typed questions sent to a decision model with each row.
