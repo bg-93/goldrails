@@ -353,14 +353,6 @@ def lead(ref, others) -> np.ndarray:
     return gap(ref, others)
 
 
-def _nan(x):
-    return np.nan if x is None else x
-
-
-def _sub(a, b):
-    return None if a is None or b is None else _r(a - b)
-
-
 def _r(x):
     return None if x is None or (isinstance(x, float) and np.isnan(x)) else round(float(x), 3)
 
@@ -413,10 +405,10 @@ def compare(name: str, task: tuple, rows: list, recs: dict, tags: list | None = 
     """(a)/(b): v1 against e2 on the same rows, per system; gap with its paired bootstrap CI and the verdict."""
     cls = np.array([r["expected"] == "yes" for r in rows])
     idx, pt = draws(cls.astype(int)), identity(len(rows))
-    per, d_reps, d_pt = {}, {}, {}
+    per, d_reps, d_pt, tag_d = {}, {}, {}, {}
     for s in SYSTEMS:
         out = {}
-        b = {}
+        b, tag_ba = {}, {}
         for ed in ("v1", "e2"):
             c, p, f = correct_vec(recs[ed], s, task, rows, ed)
             out[ed] = {**_parts(c, p), "failed": f, "balanced_accuracy": _r(ba_reps(c, p, pt)[0])}
@@ -425,12 +417,13 @@ def compare(name: str, task: tuple, rows: list, recs: dict, tags: list | None = 
                 out[ed]["by_tag"] = {}
                 for t in tags:
                     m = np.array([r["subtask"] == t for r in rows])
-                    out[ed]["by_tag"][t] = {"rows": int(m.sum()), "balanced_accuracy": _r(ba_reps(c[m], p[m], identity(int(m.sum())))[0])}
+                    tag_ba[(ed, t)] = ba_reps(c[m], p[m], identity(int(m.sum())))[0]
+                    out[ed]["by_tag"][t] = {"rows": int(m.sum()), "balanced_accuracy": _r(tag_ba[(ed, t)])}
         d_pt[s], d_reps[s] = b["e2"][0] - b["v1"][0], b["e2"][1] - b["v1"][1]
         out["delta"] = _r(d_pt[s])
-        if tags:
-            out["delta_by_tag"] = {t: _sub(out["e2"]["by_tag"][t]["balanced_accuracy"],
-                                           out["v1"]["by_tag"][t]["balanced_accuracy"]) for t in tags}
+        if tags:   # from unrounded per-tag BAs, so rounding does not leak into the deltas and gaps
+            tag_d[s] = {t: tag_ba[("e2", t)] - tag_ba[("v1", t)] for t in tags}
+            out["delta_by_tag"] = {t: _r(v) for t, v in tag_d[s].items()}
         per[s] = out
     g_pt = float(gap(d_pt[JEV], [d_pt[s] for s in NON_JEV])[0])
     g_reps = gap(d_reps[JEV], [d_reps[s] for s in NON_JEV])
@@ -438,8 +431,7 @@ def compare(name: str, task: tuple, rows: list, recs: dict, tags: list | None = 
     res = {"set": name, "subtask": f"{task[0]}/{task[1]}", "rows": len(rows), "systems": per,
            "gap": _r(g_pt), "gap_ci95": [lo, hi], "margin": MARGIN, "verdict": verdict(g_pt, lo)}
     if tags:
-        res["gap_by_tag_descriptive"] = {t: _r(gap(_nan(per[JEV]["delta_by_tag"][t]),
-                                                   [_nan(per[s]["delta_by_tag"][t]) for s in NON_JEV])[0]) for t in tags}
+        res["gap_by_tag_descriptive"] = {t: _r(gap(tag_d[JEV][t], [tag_d[s][t] for s in NON_JEV])[0]) for t in tags}
     return res
 
 

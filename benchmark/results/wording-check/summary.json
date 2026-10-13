@@ -82,9 +82,9 @@
      },
      "delta": -2.381,
      "delta_by_tag": {
-      "injection": -8.334,
-      "jailbreak": -1.315,
-      "leakage": 1.352
+      "injection": -8.333,
+      "jailbreak": -1.316,
+      "leakage": 1.351
      }
     },
     "pplx-decider-v1-27b": {
@@ -137,7 +137,7 @@
      "delta": 1.529,
      "delta_by_tag": {
       "injection": 0.0,
-      "jailbreak": 1.315,
+      "jailbreak": 1.316,
       "leakage": 2.703
      }
     },
@@ -191,7 +191,7 @@
      "delta": -3.709,
      "delta_by_tag": {
       "injection": -14.167,
-      "jailbreak": -2.631,
+      "jailbreak": -2.632,
       "leakage": 2.703
      }
     },
@@ -258,9 +258,9 @@
    "margin": 2.0,
    "verdict": "PASS",
    "gap_by_tag_descriptive": {
-    "injection": -0.001,
-    "jailbreak": -0.876,
-    "leakage": -1.801
+    "injection": 0.0,
+    "jailbreak": -0.877,
+    "leakage": -1.802
    }
   },
   "f3-topics": {
