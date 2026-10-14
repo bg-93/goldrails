@@ -189,6 +189,26 @@ const SHOWCASE_MAX_CHARS = 700;
  * share split evenly between should-block and should-pass rows; within a share, rows the systems disagree on come
  * first, sources are taken in turn so no one source dominates, and ties break on a hash of the row id.
  */
+/** Whitespace- and case-normalised text, so a match does not depend on line breaks or capitals. */
+export const normText = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+
+/** Every text field of every held-back row (build private/ folder), normalised: the row text, query, source document
+ *  and context turns. A public row that carries any of these, even as a shared template, never shows its text. */
+export function heldBackTexts(p: Paths): string[] {
+  const dir = path.join(p.buildDir, "private");
+  if (!fs.existsSync(dir)) return [];
+  const out = new Set<string>();
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".jsonl"))) {
+    for (const r of readJsonl(path.join(dir, f))) {
+      const s = r?.state ?? {};
+      for (const t of [s.text, s.query, s.source, ...(Array.isArray(s.context) ? s.context.map((c: Json) => c?.text) : [])]) {
+        if (typeof t === "string" && t.trim().length >= 20) out.add(normText(t));
+      }
+    }
+  }
+  return [...out];
+}
+
 export function selectShowcase(
   rows: Json[],
   correctShare: (r: Json) => number | null,
@@ -469,6 +489,11 @@ export function generate(repo: string, source: Board["source"] = "real"): Genera
   const rowText = (r: Json) => [r.state?.text, r.state?.query, r.state?.source, ...(r.state?.context ?? []).map((t: Json) => t?.text)]
     .filter((t) => typeof t === "string")
     .join(" ");
+  const heldBack = heldBackTexts(p);
+  const touchesHeldBack = (r: Json) => {
+    const t = normText(rowText(r));
+    return heldBack.some((h) => t.includes(h));
+  };
   const showcase = selectShowcase(
     rows,
     (r) => {
@@ -482,6 +507,7 @@ export function generate(repo: string, source: Board["source"] = "real"): Genera
       textCleared(r.provenance?.source, policy) &&
       r.redistribution !== "ids_only" &&
       !adultRow(r) &&
+      !touchesHeldBack(r) &&
       rowText(r).length > 0 &&
       rowText(r).length <= SHOWCASE_MAX_CHARS,
   );
