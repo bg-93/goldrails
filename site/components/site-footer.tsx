@@ -19,6 +19,7 @@ export function SiteFooter() {
             <li><Link className="inline-flex min-h-11 items-center" href="/research/linear-probe">Research</Link></li>
             <li><Link className="inline-flex min-h-11 items-center" href="/reproduce">Reproduce</Link></li>
             <li><Link className="inline-flex min-h-11 items-center" href="/data">Data</Link></li>
+            <li><Link className="inline-flex min-h-11 items-center" href="/research">Research</Link></li>
             <li><Link className="inline-flex min-h-11 items-center" href="/changelog">Changelog</Link></li>
             <li><a className="inline-flex min-h-11 items-center" href={HF_URL}>Dataset</a></li>
             <li><a className="inline-flex min-h-11 items-center" href={REPO_URL}>GitHub</a></li>

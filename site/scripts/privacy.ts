@@ -1,7 +1,7 @@
 // Leak check for generated site data: no unpublished id and no licence-withheld text may appear in it.
 import fs from "node:fs";
 import path from "node:path";
-import { buildTestFiles, isAdult, privateIds, readJsonl, repoPaths, textCleared } from "./generate";
+import { buildTestFiles, heldBackTexts, isAdult, normText, privateIds, readJsonl, repoPaths, textCleared } from "./generate";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -25,16 +25,7 @@ export function withheldTexts(repo: string): string[] {
 
 /** Text of every held-back row (build private/ folder), so a leak of its wording is caught too. */
 export function privateTexts(repo: string): string[] {
-  const dir = path.join(repoPaths(repo).buildDir, "private");
-  if (!fs.existsSync(dir)) return [];
-  const out: string[] = [];
-  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".jsonl"))) {
-    for (const r of readJsonl(path.join(dir, f))) {
-      const t = r?.state?.text;
-      if (typeof t === "string" && t.trim().length >= 20) out.push(t.trim());
-    }
-  }
-  return out;
+  return heldBackTexts(repoPaths(repo));
 }
 
 function collectStrings(v: unknown, out: string[]) {
@@ -61,11 +52,13 @@ export function findLeaks(repo: string, dataDir: string): Leaks {
     collectStrings(JSON.parse(fs.readFileSync(path.join(dataDir, f), "utf8")), strings);
   }
   const corpus = strings.filter((s) => s.length >= 20).join("\u0000");
+  const normCorpus = strings.filter((s) => s.length >= 20).map(normText).join("\u0000");
   const tokens = new Set<string>();
   for (const s of strings) for (const t of s.split(/[^A-Za-z0-9_.:-]+/)) if (t) tokens.add(t);
   return {
     privateIds: [...ids].filter((id) => tokens.has(id) || corpus.includes(id)),
     withheldText: withheldTexts(repo).filter((t) => corpus.includes(t)),
-    privateText: privateTexts(repo).filter((t) => corpus.includes(t)),
+    // Normalised on both sides, so a held-back text cannot slip through on a line break or a capital letter.
+    privateText: privateTexts(repo).filter((t) => normCorpus.includes(normText(t))),
   };
 }
