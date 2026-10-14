@@ -46,5 +46,20 @@ wording, so those sets are unchanged. The contract asks for every revision to be
 non-Jev models within the revision budget. That check has not run yet. It needs model calls, and it has to pass
 before the freeze.
 
+Status, 14 October 2026: the check did not run before the edition 2 freeze, and the 1.0.0 results used these sets
+without it. A reviewer raised the gap, and the site discloses it (FAQ and changelog). We ran the check after the freeze,
+under a plan committed before any row was sent (`docs/benchmark/30-question-wording-check-plan.md`, commit 9c9b642).
+It passed. Jev 1.13.0 ran next to three non-Jev models: Perplexity (pplx-decider-v1-27b), OpenAI (gpt-6-luna) and
+Clef. Each system scored the v1 and e2 wording on public dev rows. The gap is Jev's change in balanced accuracy minus the
+mean change of the other three. The pass line is 2.0 points.
+
+- Prompt attacks, 200 rows: gap -1.2 points (95% CI -4.3 to 1.8). Pass.
+- Denied topics, the 3 topics that kept their wording, 50 rows: gap -0.6 points (95% CI -1.8 to 0.0). Pass.
+- The 5 new topics and the reworded ADDRESS entity have no old wording. Jev's lead over the other three on them was within
+  2.0 points of its lead on the unchanged questions (0.9 and 1.2 points), so neither raised a flag.
+
+2 of 2,804 calls failed and count as wrong. The 1.0.0 board stands. Aggregates are in
+`benchmark/results/wording-check/summary.json`; the runner is `benchmark/runs/e2_wording_check.py`.
+
 The Bedrock topics guardrail for edition 2 is built from the same `topics-e2.json`: the configuration is
 `benchmark/suites/denied_topics/bedrock-guardrail-e2.json`, and the owner creates the new guardrail version.

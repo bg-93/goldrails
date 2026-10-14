@@ -39,9 +39,11 @@ export function SiteHeader() {
         </Link>
         <nav aria-label="Main" className="ml-auto flex min-w-0 items-center">
           <ul className="flex items-center gap-0.5 overflow-x-auto text-[14px] [scrollbar-width:none]">
-            <li><NavLink href="/">Results</NavLink></li>
+            {/* Phones: the wordmark already links home, so Results gives its room to Research. */}
+            <li className="hidden sm:block"><NavLink href="/">Results</NavLink></li>
             <li><NavLink href="/reproduce">Reproduce</NavLink></li>
             <li><NavLink href="/data">Data</NavLink></li>
+            <li><NavLink href="/research">Research</NavLink></li>
             <li className="hidden sm:block">
               <a href={HF_URL} className="inline-flex min-h-11 items-center gap-1 px-2.5 text-fg-2 no-underline underline-offset-[6px] hover:text-fg hover:underline">
                 Dataset<span className="sr-only"> on Hugging Face</span> <External />
